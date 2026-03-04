@@ -1,0 +1,45 @@
+{
+  "started_at": "2026-02-01T02:04:59.757061",
+  "last_check": "2025-11-19T10:02:00",
+  "next_check": "2025-11-19T11:00:00",
+  "total_cycles": 3,
+  "successful_cycles": 0,
+  "failed_cycles": 3,
+  "consecutive_errors": 3,
+  "total_new_posts": 0,
+  "total_modified_posts": 0,
+  "total_affected_topics": 0,
+  "uptime_seconds": 0.000104,
+  "is_running": true,
+  "pid": 12345,
+  "last_error": "Connection timeout",
+  "recent_cycles": [
+    {
+      "timestamp": "2025-11-19T10:00:00",
+      "success": false,
+      "new_posts": 0,
+      "modified_posts": 0,
+      "affected_topics": 0,
+      "duration_seconds": 5.0,
+      "error_message": "Connection timeout"
+    },
+    {
+      "timestamp": "2025-11-19T10:01:00",
+      "success": false,
+      "new_posts": 0,
+      "modified_posts": 0,
+      "affected_topics": 0,
+      "duration_seconds": 5.0,
+      "error_message": "Connection timeout"
+    },
+    {
+      "timestamp": "2025-11-19T10:02:00",
+      "success": false,
+      "new_posts": 0,
+      "modified_posts": 0,
+      "affected_topics": 0,
+      "duration_seconds": 5.0,
+      "error_message": "Connection timeout"
+    }
+  ]
+}

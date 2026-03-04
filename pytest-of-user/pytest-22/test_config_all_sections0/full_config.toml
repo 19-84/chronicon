@@ -1,0 +1,30 @@
+
+[general]
+output_dir = "/data/archives"
+default_formats = ["markdown", "github"]
+
+[fetching]
+rate_limit_seconds = 0.8
+max_workers = 12
+retry_max = 7
+timeout = 20
+exponential_backoff_base = 2
+
+[export]
+include_users = false
+text_only = false
+
+[export.html]
+theme_adaptation = "simplified"
+enable_search = true
+responsive = true
+
+[export.markdown]
+convert_html = true
+preserve_formatting = true
+include_metadata_header = true
+
+[export.github]
+generate_readme = true
+relative_image_paths = true
+gfm_syntax = true

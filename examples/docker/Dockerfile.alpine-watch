@@ -1,0 +1,90 @@
+# Secure Alpine-based Dockerfile for Chronicon Watch Mode
+# Optimized for: continuous monitoring with health checks
+# Security: Hardened, minimal attack surface, non-root user, health monitoring
+
+# Stage 1: Builder stage
+FROM python:3.12-alpine3.20 AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    git \
+    libffi-dev \
+    openssl-dev
+
+# Create virtual environment
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy only requirements first for caching
+WORKDIR /build
+COPY pyproject.toml ./
+
+# Install dependencies only (not the package itself)
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir beautifulsoup4 html2text jinja2 rich
+
+# Stage 2: Runtime stage (minimal)
+FROM python:3.12-alpine3.20
+
+# Install only runtime dependencies
+RUN apk add --no-cache \
+    git \
+    ca-certificates \
+    tzdata \
+    wget \
+    curl && \
+    # Create non-root user
+    adduser -D -u 1000 -h /home/chronicon -s /sbin/nologin chronicon && \
+    # Create directories
+    mkdir -p /archives /app /tmp/chronicon && \
+    chown -R chronicon:chronicon /archives /app /tmp/chronicon
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Copy application code
+# Note: Path calculation expects templates at package root level
+COPY --chown=chronicon:chronicon src/chronicon/ /app/chronicon/
+COPY --chown=chronicon:chronicon templates/ /templates/
+COPY --chown=chronicon:chronicon static/ /static/
+
+# Set environment
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    CHRONICON_OUTPUT_DIR=/archives \
+    HOME=/home/chronicon \
+    TMPDIR=/tmp/chronicon
+
+# Set working directory
+WORKDIR /archives
+
+# Switch to non-root user
+USER chronicon
+
+# Security: Remove write permissions on app
+RUN chmod -R go-w /app 2>/dev/null || true
+
+# Health check for watch mode (HTTP endpoint)
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget -q --spider http://localhost:8080/health || exit 1
+
+# Labels for metadata
+LABEL maintainer="Chronicon" \
+      version="1.0.0" \
+      description="Secure Alpine-based Chronicon container for continuous watch mode" \
+      base="python:3.12-alpine3.20" \
+      security="hardened" \
+      mode="watch"
+
+# Expose health check port
+EXPOSE 8080
+
+# Volume for archives
+VOLUME ["/archives"]
+
+# Default entrypoint and command for watch mode (use python -m to run as module)
+ENTRYPOINT ["python", "-m", "chronicon.cli"]
+CMD ["watch", "--output-dir", "/archives"]

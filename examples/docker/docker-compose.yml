@@ -1,0 +1,55 @@
+services:
+  chronicon-watch:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.watch
+    container_name: chronicon-watch
+    restart: unless-stopped
+
+    volumes:
+      # Archive data
+      - ./archives:/archives
+
+      # Configuration (optional)
+      - ./config/.chronicon.toml:/home/chronicon/.chronicon.toml:ro
+
+      # Git SSH key (optional, for push to remote)
+      # - ./config/ssh:/home/chronicon/.ssh:ro
+
+    environment:
+      # Override config values via environment
+      - CHRONICON_OUTPUT_DIR=/archives
+      - TZ=UTC
+
+    ports:
+      # Health check endpoint
+      - "8080:8080"
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Labels for monitoring
+    labels:
+      - "com.example.service=chronicon-watch"
+      - "com.example.version=1.0"

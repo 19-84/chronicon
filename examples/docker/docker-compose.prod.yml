@@ -1,0 +1,149 @@
+# Docker Compose for Chronicon Production (Alpine-based, Maximum Security)
+# Use this for production deployments with full security hardening
+# Features: Watch mode only, secrets management, monitoring, auto-restart
+
+version: '3.8'
+
+services:
+  chronicon-watch:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.alpine-watch
+    image: chronicon:alpine-watch
+    container_name: chronicon-prod
+
+    # Security hardening (maximum)
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:seccomp.json
+      # Uncomment if AppArmor is available
+      # - apparmor:chronicon-profile
+    cap_drop:
+      - ALL
+    read_only: true
+
+    # Writable temporary filesystem (minimal)
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=100m,mode=1777
+      - /home/chronicon:noexec,nosuid,nodev,size=10m,mode=700
+
+    # Volumes
+    volumes:
+      # Archive data (persistent)
+      - chronicon-archives:/archives
+
+      # Configuration (read-only)
+      - ./config/.chronicon.toml:/home/chronicon/.chronicon.toml:ro
+
+      # Git SSH key (using Docker secrets - recommended)
+      # Uncomment if using git push
+      # - chronicon-ssh-key:/home/chronicon/.ssh/id_rsa:ro
+
+    # Environment
+    environment:
+      - CHRONICON_OUTPUT_DIR=/archives
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
+
+    # Secrets (for sensitive data)
+    # Uncomment and configure if needed
+    # secrets:
+    #   - chronicon_ssh_key
+    #   - chronicon_config
+
+    # Ports (expose health check only)
+    ports:
+      - "127.0.0.1:8080:8080"  # Bind to localhost only
+
+    # Resource limits (production tuned)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: unless-stopped
+        delay: 30s
+        max_attempts: 5
+        window: 120s
+
+    # Process limits
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 2048
+      nproc:
+        soft: 512
+        hard: 512
+    pids_limit: 100
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Networks
+    networks:
+      - chronicon-prod
+
+    # Logging (production-grade)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "com.chronicon.service,com.chronicon.environment"
+        tag: "{{.Name}}/{{.ID}}"
+
+    # Labels for monitoring and management
+    labels:
+      - "com.chronicon.service=watch"
+      - "com.chronicon.environment=production"
+      - "com.chronicon.security=maximum"
+      - "com.chronicon.version=1.0.0"
+
+      # Prometheus metrics
+      - "prometheus.scrape=true"
+      - "prometheus.port=8080"
+      - "prometheus.path=/metrics"
+
+      # Traefik (if using)
+      # - "traefik.enable=true"
+      # - "traefik.http.routers.chronicon.rule=Host(`chronicon.example.com`)"
+      # - "traefik.http.services.chronicon.loadbalancer.server.port=8080"
+
+# Networks
+networks:
+  chronicon-prod:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-chronicon-prod
+      com.docker.network.bridge.enable_icc: "false"  # Disable inter-container communication
+    ipam:
+      config:
+        - subnet: 172.26.0.0/24
+
+# Volumes
+volumes:
+  chronicon-archives:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/chronicon/archives
+
+# Secrets (for sensitive configuration)
+# secrets:
+#   chronicon_ssh_key:
+#     file: ./secrets/id_rsa
+#   chronicon_config:
+#     file: ./secrets/.chronicon.toml

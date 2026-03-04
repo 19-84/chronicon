@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{# Macro for generating page URL #}
+{% macro page_url(username, page_num) -%}
+    {%- if page_num == 1 -%}
+        {{ username }}.html
+    {%- else -%}
+        {{ username }}-page-{{ page_num }}.html
+    {%- endif -%}
+{%- endmacro %}
+
+{# Macro for pagination controls #}
+{% macro pagination_nav(username, pagination) %}
+<nav class="pagination-controls">
+    {% set total = pagination.total_pages %}
+    {% set current = pagination.current_page %}
+
+    {# Build list of unique page numbers to display (up to 3) #}
+    {% set pages = [] %}
+    {% if current == 1 %}
+        {% set pages = [1] %}
+        {% if total >= 2 %}{% set pages = pages + [2] %}{% endif %}
+        {% if total >= 3 %}{% set pages = pages + [3] %}{% endif %}
+    {% elif current == total %}
+        {% if total >= 3 %}{% set pages = [total - 2] %}{% endif %}
+        {% if total >= 2 %}{% set pages = pages + [total - 1] %}{% endif %}
+        {% set pages = pages + [total] %}
+    {% else %}
+        {% set pages = [current - 1, current, current + 1] %}
+    {% endif %}
+
+    {# First page button #}
+    {% if current > 1 %}
+    <a href="{{ page_url(username, 1) }}" class="page-btn page-first" title="First page" aria-label="First page">‹‹‹</a>
+    {% else %}
+    <span class="page-btn page-first disabled" aria-disabled="true">‹‹‹</span>
+    {% endif %}
+
+    {# Skip back 10 pages #}
+    {% if current > 10 %}
+    <a href="{{ page_url(username, current - 10) }}" class="page-btn page-skip-back" title="Skip back 10 pages" aria-label="Skip back 10 pages">‹‹</a>
+    {% else %}
+    <span class="page-btn page-skip-back disabled" aria-disabled="true">‹‹</span>
+    {% endif %}
+
+    {# Previous page #}
+    {% if pagination.has_prev %}
+    <a href="{{ page_url(username, pagination.prev_page) }}" class="page-btn page-prev" title="Previous page" aria-label="Previous page">‹</a>
+    {% else %}
+    <span class="page-btn page-prev disabled" aria-disabled="true">‹</span>
+    {% endif %}
+
+    {# Show page number buttons (only unique values) #}
+    {% for page_num in pages %}
+    {% if page_num == current %}
+    <span class="page-num page-current" aria-current="page">{{ page_num }}</span>
+    {% else %}
+    <a href="{{ page_url(username, page_num) }}" class="page-num" aria-label="Page {{ page_num }}">{{ page_num }}</a>
+    {% endif %}
+    {% endfor %}
+
+    {# Next page #}
+    {% if pagination.has_next %}
+    <a href="{{ page_url(username, pagination.next_page) }}" class="page-btn page-next" title="Next page" aria-label="Next page">›</a>
+    {% else %}
+    <span class="page-btn page-next disabled" aria-disabled="true">›</span>
+    {% endif %}
+
+    {# Skip forward 10 pages #}
+    {% if current + 10 <= total %}
+    <a href="{{ page_url(username, current + 10) }}" class="page-btn page-skip-forward" title="Skip forward 10 pages" aria-label="Skip forward 10 pages">››</a>
+    {% else %}
+    <span class="page-btn page-skip-forward disabled" aria-disabled="true">››</span>
+    {% endif %}
+
+    {# Last page button #}
+    {% if current < total %}
+    <a href="{{ page_url(username, total) }}" class="page-btn page-last" title="Last page" aria-label="Last page">›››</a>
+    {% else %}
+    <span class="page-btn page-last disabled" aria-disabled="true">›››</span>
+    {% endif %}
+</nav>
+{% endmacro %}
+
+{% block title %}{{ user.username }}{% if pagination and pagination.current_page > 1 %} - Page {{ pagination.current_page }}{% endif %} - Forum Archive{% endblock %}
+
+{% block seo_meta %}
+{% if meta_description %}
+<meta name="description" content="{{ meta_description }}">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="user-profile">
+    <nav class="breadcrumb">
+        <a href="{{ rel_path('index.html', depth) }}">Home</a> &raquo;
+        <a href="{{ rel_path('users/index.html', depth) }}">Users</a> &raquo;
+        <span>{{ user.username }}</span>
+    </nav>
+
+    <header class="user-header">
+        {% set local_avatar = get_local_avatar(user.id, 1) %}
+        {% if local_avatar %}
+        <img src="{{ local_avatar }}" alt="{{ user.username }}'s avatar" class="avatar">
+        {% elif user.avatar_template %}
+        <img src="{{ user.avatar_template.replace('{size}', '96') }}" alt="{{ user.username }}'s avatar" class="avatar">
+        {% else %}
+        <div class="avatar-placeholder">{{ user.username[0]|upper }}</div>
+        {% endif %}
+        <h1>{{ user.username }}</h1>
+        {% if user.name %}
+        <p class="real-name">{{ user.name }}</p>
+        {% endif %}
+        {% if post_count %}
+        <p class="user-stats">{{ post_count }} posts</p>
+        {% endif %}
+    </header>
+
+    {% if pagination and pagination.total_pages > 1 %}
+    <div class="pagination" aria-label="User posts pagination">
+        {{ pagination_nav(user.username, pagination) }}
+    </div>
+    {% endif %}
+
+    <section class="user-posts">
+        <h2>{% if pagination and pagination.current_page > 1 %}Posts (Page {{ pagination.current_page }}){% else %}Recent Posts{% endif %}</h2>
+        {% if user_posts %}
+        <ul class="user-post-list">
+            {% for post_data in user_posts %}
+            {% set post = post_data.post %}
+            <li class="user-post-card">
+                <div class="user-post-header">
+                    <h3>
+                        <a href="{{ rel_path('t/' + post_data.topic_slug + '/' + post_data.topic_id|string + '.html', depth) }}#post-{{ post.post_number }}">
+                            {{ post_data.topic_title }}
+                        </a>
+                    </h3>
+                    <div class="user-post-meta">
+                        {% if post_data.category_name %}
+                        <span class="topic-category">
+                            <span class="topic-category-badge" style="background-color: #{{ post_data.category_color }};">
+                                {{ post_data.category_name }}
+                            </span>
+                        </span>
+                        {% endif %}
+                        <span class="post-date">{{ post.created_at|format_date }}</span>
+                        <span class="post-number">Post #{{ post.post_number }}</span>
+                    </div>
+                </div>
+                {% if post.cooked %}
+                <div class="user-post-excerpt">
+                    {{ post.cooked|striptags|truncate(300) }}
+                </div>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p>No posts found for this user.</p>
+        {% endif %}
+
+        {% if pagination and pagination.total_pages > 1 %}
+        <div class="pagination pagination-bottom" aria-label="User posts pagination">
+            {{ pagination_nav(user.username, pagination) }}
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

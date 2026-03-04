@@ -1,0 +1,27 @@
+{
+  "started_at": "2026-02-01T02:05:01.583360",
+  "last_check": "2025-11-19T10:00:00",
+  "next_check": "2025-11-19T11:00:00",
+  "total_cycles": 1,
+  "successful_cycles": 1,
+  "failed_cycles": 0,
+  "consecutive_errors": 0,
+  "total_new_posts": 5,
+  "total_modified_posts": 2,
+  "total_affected_topics": 3,
+  "uptime_seconds": 3.3e-05,
+  "is_running": true,
+  "pid": 12345,
+  "last_error": null,
+  "recent_cycles": [
+    {
+      "timestamp": "2025-11-19T10:00:00",
+      "success": true,
+      "new_posts": 5,
+      "modified_posts": 2,
+      "affected_topics": 3,
+      "duration_seconds": 45.5,
+      "error_message": null
+    }
+  ]
+}

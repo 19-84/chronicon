@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-02-01T02:05:00.368741",
+  "last_check": null,
+  "next_check": null,
+  "total_cycles": 0,
+  "successful_cycles": 0,
+  "failed_cycles": 0,
+  "consecutive_errors": 0,
+  "total_new_posts": 0,
+  "total_modified_posts": 0,
+  "total_affected_topics": 0,
+  "uptime_seconds": 0.0,
+  "is_running": false,
+  "pid": 12345,
+  "last_error": null,
+  "recent_cycles": []
+}

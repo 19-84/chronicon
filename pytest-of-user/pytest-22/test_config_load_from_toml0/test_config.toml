@@ -1,0 +1,15 @@
+
+[general]
+output_dir = "/custom/output"
+default_formats = ["html"]
+
+[fetching]
+rate_limit_seconds = 1.5
+max_workers = 16
+retry_max = 10
+timeout = 30
+exponential_backoff_base = 3
+
+[export]
+include_users = true
+text_only = true

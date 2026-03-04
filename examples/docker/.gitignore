@@ -1,0 +1,14 @@
+# Environment file with secrets
+.env
+
+# PostgreSQL data directory
+postgres-data/
+
+# Archive output directory (for local testing)
+archives/
+
+# Certbot/LetsEncrypt certificates
+certbot/
+
+# SSH keys
+ssh/

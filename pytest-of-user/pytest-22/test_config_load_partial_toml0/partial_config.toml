@@ -1,0 +1,6 @@
+
+[general]
+output_dir = "/tmp/archives"
+
+[fetching]
+rate_limit_seconds = 2.0

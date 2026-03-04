@@ -1,0 +1,22 @@
+# Docker Compose for PostgreSQL example archive
+# Tests Chronicon with PostgreSQL backend end-to-end
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chronicon
+      POSTGRES_PASSWORD: chronicon
+      POSTGRES_DB: chronicon
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chronicon -d chronicon"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

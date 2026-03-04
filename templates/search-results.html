@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Search{% if query %}: {{ query }}{% endif %} - {{ site_title or 'Forum Archive' }}{% endblock %}
+
+{% block seo_meta %}
+<meta name="description" content="Search the {{ site_title or 'Forum Archive' }} archive.">
+<meta name="robots" content="noindex, follow">
+{% endblock %}
+
+{% block content %}
+<div class="search-page">
+    <h1>Search Archive</h1>
+
+    <form action="/search" method="get" class="search-box">
+        <input type="text" name="q" value="{{ query or '' }}" placeholder="Search topics and posts..." class="search-input" autofocus />
+        <button type="submit" class="search-button">Search</button>
+    </form>
+
+    {% if error %}
+    <div class="search-error">
+        <p>{{ error }}</p>
+    </div>
+    {% elif query %}
+    <div class="search-results">
+        <p class="results-count">
+            Found {{ total }} result{% if total != 1 %}s{% endif %} for "{{ query }}"
+            {% if total > 0 %}
+            <span class="results-breakdown">({{ total_topics }} topic{% if total_topics != 1 %}s{% endif %}, {{ total_posts }} post{% if total_posts != 1 %}s{% endif %})</span>
+            {% endif %}
+        </p>
+        
+        {% if topic_results or post_results %}
+        
+        {# Topic matches - titles that match #}
+        {% if topic_results %}
+        <section class="search-section">
+            <h2 class="search-section-title">Topic Matches</h2>
+            {% for topic in topic_results %}
+            <div class="search-result search-result-topic">
+                <div class="result-type-badge topic-badge">Topic</div>
+                <h3><a href="/archive/t/{{ topic.slug }}/{{ topic.id }}.html">{{ topic.title }}</a></h3>
+                <p class="meta">
+                    <span class="date">{{ topic.created_at[:10] if topic.created_at else '' }}</span>
+                    {% if topic.category_name %}
+                    <span class="topic-category-badge" style="background-color: #{{ topic.category_color or '888' }}; color: white;">{{ topic.category_name }}</span>
+                    {% endif %}
+                    <span>{{ topic.posts_count or 0 }} posts</span>
+                </p>
+                {% if topic.excerpt %}
+                <p class="excerpt">{{ topic.excerpt }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+        
+        {# Post matches - content that matches #}
+        {% if post_results %}
+        <section class="search-section">
+            <h2 class="search-section-title">Post Matches</h2>
+            {% for post in post_results %}
+            <div class="search-result search-result-post {% if post.is_original %}search-result-original{% else %}search-result-reply{% endif %}">
+                <div class="result-type-badge {% if post.is_original %}original-badge{% else %}reply-badge{% endif %}">{{ post.post_type }}</div>
+                <h3><a href="/archive/t/{{ post.slug }}/{{ post.topic_id }}.html#post-{{ post.post_number }}">{{ post.title }}</a></h3>
+                <p class="meta">
+                    <span class="author">by {{ post.username or 'Unknown' }}</span>
+                    <span class="date">{{ post.created_at[:10] if post.created_at else '' }}</span>
+                    {% if post.category_name %}
+                    <span class="topic-category-badge" style="background-color: #{{ post.category_color or '888' }}; color: white;">{{ post.category_name }}</span>
+                    {% endif %}
+                </p>
+                {% if post.excerpt %}
+                <p class="excerpt">{{ post.excerpt }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+        
+        {% else %}
+        <p class="no-results">No results found.</p>
+        {% endif %}
+        
+        {% if total > per_page %}
+        <nav class="pagination" aria-label="Search results pagination">
+            <div class="pagination-controls">
+                {% if page > 1 %}
+                <a href="/search?q={{ query }}&page={{ page - 1 }}" class="page-btn">← Previous</a>
+                {% endif %}
+                
+                <span class="pagination-info">Page {{ page }} of {{ ((total - 1) // per_page) + 1 }}</span>
+                
+                {% if page * per_page < total %}
+                <a href="/search?q={{ query }}&page={{ page + 1 }}" class="page-btn">Next →</a>
+                {% endif %}
+            </div>
+        </nav>
+        {% endif %}
+    </div>
+    {% else %}
+    <div id="search-results" class="search-results">
+        <p class="search-hint">Enter a search term to find topics and posts.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

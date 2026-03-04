@@ -1,0 +1,153 @@
+{
+  "started_at": "2026-02-01T02:05:02.192297",
+  "last_check": "2025-11-19T10:14:00",
+  "next_check": null,
+  "total_cycles": 15,
+  "successful_cycles": 10,
+  "failed_cycles": 5,
+  "consecutive_errors": 0,
+  "total_new_posts": 75,
+  "total_modified_posts": 35,
+  "total_affected_topics": 20,
+  "uptime_seconds": 0.000119,
+  "is_running": true,
+  "pid": 12345,
+  "last_error": null,
+  "recent_cycles": [
+    {
+      "timestamp": "2025-11-19T10:00:00",
+      "success": false,
+      "new_posts": 0,
+      "modified_posts": 0,
+      "affected_topics": 0,
+      "duration_seconds": 30.0,
+      "error_message": "Test error"
+    },
+    {
+      "timestamp": "2025-11-19T10:01:00",
+      "success": true,
+      "new_posts": 1,
+      "modified_posts": 0,
+      "affected_topics": 0,
+      "duration_seconds": 31.0,
+      "error_message": null
+    },
+    {
+      "timestamp": "2025-11-19T10:02:00",
+      "success": true,
+      "new_posts": 2,
+      "modified_posts": 1,
+      "affected_topics": 0,
+      "duration_seconds": 32.0,
+      "error_message": null
+    },
+    {
+      "timestamp": "2025-11-19T10:03:00",
+      "success": false,
+      "new_posts": 3,
+      "modified_posts": 1,
+      "affected_topics": 1,
+      "duration_seconds": 33.0,
+      "error_message": "Test error"
+    },
+    {
+      "timestamp": "2025-11-19T10:04:00",
+      "success": true,
+      "new_posts": 4,
+      "modified_posts": 2,
+      "affected_topics": 1,
+      "duration_seconds": 34.0,
+      "error_message": null
+    },
+    {
+      "timestamp": "2025-11-19T10:05:00",
+      "success": true,
+      "new_posts": 5,
+      "modified_posts": 2,
+      "affected_topics": 1,
+      "duration_seconds": 35.0,
+      "error_message": null
+    },
+    {
+      "timestamp": "2025-11-19T10:06:00",
+      "success": false,
+      "new_posts": 6,
+      "modified_posts": 3,
+      "affected_topics": 2,
+      "duration_seconds": 36.0,
+      "error_message": "Test error"
+    },
+    {
+      "timestamp": "2025-11-19T10:07:00",
+      "success": true,
+      "new_posts": 7,
+      "modified_posts": 3,
+      "affected_topics": 2,
+      "duration_seconds": 37.0,
+      "error_message": null
+    },
+    {
+      "timestamp": "2025-11-19T10:08:00",
+      "success": true,
+      "new_posts": 8,
+      "modified_posts": 4,
+      "affected_topics": 2,
+      "duration_seconds": 38.0,
+      "error_message": null
+    },
+    {
+      "timestamp": "2025-11-19T10:09:00",
+      "success": false,
+      "new_posts": 9,
+      "modified_posts": 4,
+      "affected_topics": 3,
+      "duration_seconds": 39.0,
+      "error_message": "Test error"
+    },
+    {
+      "timestamp": "2025-11-19T10:10:00",
+      "success": true,
+      "new_posts": 10,
+      "modified_posts": 5,
+      "affected_topics": 3,
+      "duration_seconds": 40.0,
+      "error_message": null
+    },
+    {
+      "timestamp": "2025-11-19T10:11:00",
+      "success": true,
+      "new_posts": 11,
+      "modified_posts": 5,
+      "affected_topics": 3,
+      "duration_seconds": 41.0,
+      "error_message": null
+    },
+    {
+      "timestamp": "2025-11-19T10:12:00",
+      "success": false,
+      "new_posts": 12,
+      "modified_posts": 6,
+      "affected_topics": 4,
+      "duration_seconds": 42.0,
+      "error_message": "Test error"
+    },
+    {
+      "timestamp": "2025-11-19T10:13:00",
+      "success": true,
+      "new_posts": 13,
+      "modified_posts": 6,
+      "affected_topics": 4,
+      "duration_seconds": 43.0,
+      "error_message": null
+    },
+    {
+      "timestamp": "2025-11-19T10:14:00",
+      "success": true,
+      "new_posts": 14,
+      "modified_posts": 7,
+      "affected_topics": 4,
+      "duration_seconds": 44.0,
+      "error_message": null
+    }
+  ]
+}

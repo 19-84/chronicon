@@ -1,0 +1,23 @@
+# ABOUTME: Docker Compose for PostgreSQL integration testing in CI/CD
+# ABOUTME: Spins up an ephemeral PostgreSQL instance for running tests
+
+# Docker Compose for PostgreSQL integration testing
+# Usage: docker compose -f docker-compose.test-postgres.yml up -d
+
+services:
+  postgres-test:
+    image: postgres:17-alpine
+    container_name: chronicon-postgres-test
+    environment:
+      POSTGRES_USER: chronicon
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: chronicon_test
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chronicon -d chronicon_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    tmpfs:
+      - /var/lib/postgresql/data

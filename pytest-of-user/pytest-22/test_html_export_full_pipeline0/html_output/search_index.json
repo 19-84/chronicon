@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-02-01T02:04:34.213661",
+  "items": [
+    {
+      "type": "topic",
+      "id": 1,
+      "title": "Test Topic",
+      "url": "t/test-topic/1.html",
+      "excerpt": "This is the first post",
+      "category": "General Discussion",
+      "author": "testuser",
+      "created_at": "2024-01-01"
+    },
+    {
+      "type": "post",
+      "id": 2,
+      "topic_id": 1,
+      "title": "Reply in: Test Topic",
+      "url": "t/test-topic/1.html#post-2",
+      "excerpt": "This is a reply",
+      "author": "testuser",
+      "created_at": "2024-01-01"
+    }
+  ]
+}

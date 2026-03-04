@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.json
+htmlcov/
+.tox/
+.hypothesis/
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+opencode.json
+.mcp.json
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Project specific
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.claude/
+.chronicon.toml
+
+# PostgreSQL data directories
+examples/docker/postgres-data/
+examples/postgres-test/postgres-data/
+
+# Archives output (test data and user archives)
+archives/
+output_*/
+test-archive/
+test_archive/
+test-*/
+test[0-9]*/
+
+# Build & Distribution
+*.tar.gz
+*.whl
+*.rpm
+*.deb
+
+# Documentation builds
+docs/_build/
+docs/.doctrees/
+site/
+
+# Logs
+*.log
+*.log.*
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~.nib
+.cache/
+
+# Node/npm (not used in this project)
+node_modules/
+package-lock.json
+yarn.lock

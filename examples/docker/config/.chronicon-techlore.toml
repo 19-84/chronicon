@@ -1,0 +1,53 @@
+# Chronicon Configuration for Techlore Discourse
+
+[general]
+output_dir = "/archives"
+default_formats = ["html", "markdown"]
+
+[fetching]
+rate_limit_seconds = 0.5
+max_workers = 8
+retry_max = 5
+timeout = 15
+exponential_backoff_base = 2
+
+[export]
+include_users = false
+text_only = false
+
+[export.html]
+theme_adaptation = "simplified"
+enable_search = true
+responsive = true
+
+[export.markdown]
+convert_html = true
+preserve_formatting = true
+include_metadata_header = true
+
+[export.github]
+generate_readme = true
+relative_image_paths = true
+gfm_syntax = true
+
+# Continuous mode settings
+[continuous]
+polling_interval_minutes = 10
+max_consecutive_errors = 5
+error_backoff_multiplier = 2.0
+
+# Git integration enabled
+[continuous.git]
+enabled = true
+auto_commit = true
+commit_on_each_update = true
+push_to_remote = false
+remote_name = "origin"
+branch = "main"
+commit_message_template = "chore: update archive - {new_posts} new, {modified_posts} modified, {topics} topics"
+
+# Techlore Discourse
+[[sites]]
+url = "https://discuss.techlore.tech"
+nickname = "techlore"
+rate_limit_seconds = 0.5

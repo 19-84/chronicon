@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{# Macro for generating category page URL #}
+{% macro page_url(page_num) -%}
+    {%- if page_num == 1 -%}
+        index.html
+    {%- else -%}
+        page-{{ page_num }}.html
+    {%- endif -%}
+{%- endmacro %}
+
+{# Macro for pagination controls #}
+{% macro pagination_nav(pagination) %}
+<nav class="pagination-controls">
+    {% set total = pagination.total_pages %}
+    {% set current = pagination.current_page %}
+
+    {# Build list of unique page numbers to display (up to 3) #}
+    {% set pages = [] %}
+    {% if current == 1 %}
+        {% set pages = [1] %}
+        {% if total >= 2 %}{% set pages = pages + [2] %}{% endif %}
+        {% if total >= 3 %}{% set pages = pages + [3] %}{% endif %}
+    {% elif current == total %}
+        {% if total >= 3 %}{% set pages = [total - 2] %}{% endif %}
+        {% if total >= 2 %}{% set pages = pages + [total - 1] %}{% endif %}
+        {% set pages = pages + [total] %}
+    {% else %}
+        {% set pages = [current - 1, current, current + 1] %}
+    {% endif %}
+
+    {# First page button #}
+    {% if current > 1 %}
+    <a href="{{ page_url(1) }}" class="page-btn page-first" title="First page" aria-label="First page">‹‹‹</a>
+    {% else %}
+    <span class="page-btn page-first disabled" aria-disabled="true">‹‹‹</span>
+    {% endif %}
+
+    {# Skip back 10 pages #}
+    {% if current > 10 %}
+    <a href="{{ page_url(current - 10) }}" class="page-btn page-skip-back" title="Skip back 10 pages" aria-label="Skip back 10 pages">‹‹</a>
+    {% else %}
+    <span class="page-btn page-skip-back disabled" aria-disabled="true">‹‹</span>
+    {% endif %}
+
+    {# Previous page #}
+    {% if pagination.has_prev %}
+    <a href="{{ page_url(pagination.prev_page) }}" class="page-btn page-prev" title="Previous page" aria-label="Previous page">‹</a>
+    {% else %}
+    <span class="page-btn page-prev disabled" aria-disabled="true">‹</span>
+    {% endif %}
+
+    {# Show page number buttons (only unique values) #}
+    {% for page_num in pages %}
+    {% if page_num == current %}
+    <span class="page-num page-current" aria-current="page">{{ page_num }}</span>
+    {% else %}
+    <a href="{{ page_url(page_num) }}" class="page-num" aria-label="Page {{ page_num }}">{{ page_num }}</a>
+    {% endif %}
+    {% endfor %}
+
+    {# Next page #}
+    {% if pagination.has_next %}
+    <a href="{{ page_url(pagination.next_page) }}" class="page-btn page-next" title="Next page" aria-label="Next page">›</a>
+    {% else %}
+    <span class="page-btn page-next disabled" aria-disabled="true">›</span>
+    {% endif %}
+
+    {# Skip forward 10 pages #}
+    {% if current + 10 <= total %}
+    <a href="{{ page_url(current + 10) }}" class="page-btn page-skip-forward" title="Skip forward 10 pages" aria-label="Skip forward 10 pages">››</a>
+    {% else %}
+    <span class="page-btn page-skip-forward disabled" aria-disabled="true">››</span>
+    {% endif %}
+
+    {# Last page button #}
+    {% if current < total %}
+    <a href="{{ page_url(total) }}" class="page-btn page-last" title="Last page" aria-label="Last page">›››</a>
+    {% else %}
+    <span class="page-btn page-last disabled" aria-disabled="true">›››</span>
+    {% endif %}
+</nav>
+{% endmacro %}
+
+{% block title %}{{ category.name }} - {{ site_title }}{% endblock %}
+
+{% block seo_meta %}
+{% if meta_description %}
+<meta name="description" content="{{ meta_description }}">
+{% elif category.description %}
+<meta name="description" content="{{ category.description }}">
+{% elif site_description %}
+<meta name="description" content="{{ site_description }}">
+{% endif %}
+<meta name="keywords" content="forum, {{ category.name }}, discussion">
+{% endblock %}
+
+{% block og_tags %}
+{% if og_tags %}
+{% for key, value in og_tags.items() if value %}
+<meta property="{{ key }}" content="{{ value }}">
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="category-page">
+    <nav class="breadcrumb">
+        <a href="{{ rel_path('index.html', depth) }}">Home</a> &raquo;
+        <span>{{ category.name }}</span>
+    </nav>
+
+    <header class="category-header" style="border-left: 4px solid #{{ category.color }};">
+        <h1>{{ category.name }}</h1>
+        {% if category.description %}
+        <p class="category-description">{{ category.description }}</p>
+        {% endif %}
+        <div class="category-stats">
+            {{ category.topic_count }} topics
+        </div>
+    </header>
+
+    {% if pagination and pagination.total_pages > 1 %}
+    <div class="pagination" aria-label="Category pagination">
+        {{ pagination_nav(pagination) }}
+    </div>
+    {% endif %}
+
+    <section class="topic-list">
+        {% if topics %}
+        <ul>
+            {% for topic in topics %}
+            <li class="topic-card">
+                <h2>
+                    <a href="{{ rel_path('t/' + topic.slug + '/' + topic.id|string + '.html', depth) }}">
+                        {{ topic.title }}
+                    </a>
+                </h2>
+                <div class="topic-meta">
+                    <span class="topic-author">Started by {{ topic.username or 'Unknown' }}</span>
+                    <span class="topic-date">{{ topic.created_at|format_date }}</span>
+                    <span class="topic-replies">{{ topic.posts_count - 1 }} replies</span>
+                    <span class="topic-views">{{ topic.views }} views</span>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p>No topics in this category.</p>
+        {% endif %}
+    </section>
+
+    {% if pagination and pagination.total_pages > 1 %}
+    <div class="pagination pagination-bottom" aria-label="Category pagination">
+        {{ pagination_nav(pagination) }}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

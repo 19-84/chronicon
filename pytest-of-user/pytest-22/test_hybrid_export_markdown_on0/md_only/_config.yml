@@ -1,0 +1,21 @@
+# GitHub Pages configuration for Chronicon archive
+# Serves the HTML version from the root directory
+
+# Exclude markdown directory and database from site
+exclude:
+  - md
+  - archive.db
+  - "*.json"
+  - .chronicon*
+
+# Include HTML assets
+include:
+  - assets
+
+# Set baseurl if deploying to a subdirectory (e.g., "/my-archive")
+# Leave empty for deployment to root domain
+baseurl: ""
+
+# Disable Jekyll processing for faster builds
+markdown: kramdown
+highlighter: rouge

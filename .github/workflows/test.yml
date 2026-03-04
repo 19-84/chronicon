@@ -1,0 +1,89 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Run ruff formatter check
+      run: uv run ruff format --check src/ tests/
+
+    - name: Run ruff linter
+      run: uv run ruff check src/ tests/
+
+    - name: Run pyright type checking
+      run: uv run pyright src/ tests/
+
+    - name: Run tests with coverage
+      run: uv run pytest --cov=chronicon --cov-report=term-missing --cov-report=xml --cov-report=json
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Check coverage threshold
+      run: |
+        COVERAGE=$(uv run python -c "import json; print(json.load(open('coverage.json'))['totals']['percent_covered'])")
+        echo "Coverage: ${COVERAGE}%"
+        if (( $(echo "$COVERAGE < 60" | bc -l) )); then
+          echo "Coverage is below 60%"
+          exit 1
+        fi
+
+  test-postgres:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: chronicon
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: chronicon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Set up Python 3.12
+      run: uv python install 3.12
+
+    - name: Install dependencies with PostgreSQL support
+      run: uv sync --all-extras
+
+    - name: Run PostgreSQL integration tests
+      env:
+        TEST_POSTGRES_URL: postgresql://chronicon:test@localhost:5432/chronicon_test
+      run: uv run pytest tests/test_postgres_integration.py -v

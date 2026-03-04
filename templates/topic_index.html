@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{# Macro for generating index page URL #}
+{% macro index_page_url(page_num) -%}
+    {%- if page_num == 1 -%}
+        index.html
+    {%- else -%}
+        page-{{ page_num }}.html
+    {%- endif -%}
+{%- endmacro %}
+
+{# Macro for pagination controls (adapted for index pages) #}
+{% macro pagination_nav(pagination, base_path) %}
+<nav class="pagination-controls">
+    {% set total = pagination.total_pages %}
+    {% set current = pagination.current_page %}
+
+    {# Build list of unique page numbers to display (up to 3) #}
+    {% set pages = [] %}
+    {% if current == 1 %}
+        {% set pages = [1] %}
+        {% if total >= 2 %}{% set pages = pages + [2] %}{% endif %}
+        {% if total >= 3 %}{% set pages = pages + [3] %}{% endif %}
+    {% elif current == total %}
+        {% if total >= 3 %}{% set pages = [total - 2] %}{% endif %}
+        {% if total >= 2 %}{% set pages = pages + [total - 1] %}{% endif %}
+        {% set pages = pages + [total] %}
+    {% else %}
+        {% set pages = [current - 1, current, current + 1] %}
+    {% endif %}
+
+    {# First page button #}
+    {% if current > 1 %}
+    <a href="{{ rel_path(base_path + '/index.html', depth) }}" class="page-btn page-first" title="First page" aria-label="First page">‹‹‹</a>
+    {% else %}
+    <span class="page-btn page-first disabled" aria-disabled="true">‹‹‹</span>
+    {% endif %}
+
+    {# Skip back 10 pages #}
+    {% if current > 10 %}
+    <a href="{{ rel_path(base_path + '/page-' + (current - 10)|string + '.html', depth) }}" class="page-btn page-skip-back" title="Skip back 10 pages" aria-label="Skip back 10 pages">‹‹</a>
+    {% else %}
+    <span class="page-btn page-skip-back disabled" aria-disabled="true">‹‹</span>
+    {% endif %}
+
+    {# Previous page #}
+    {% if pagination.has_prev %}
+        {% if pagination.prev_page == 1 %}
+    <a href="{{ rel_path(base_path + '/index.html', depth) }}" class="page-btn page-prev" title="Previous page" aria-label="Previous page">‹</a>
+        {% else %}
+    <a href="{{ rel_path(base_path + '/page-' + pagination.prev_page|string + '.html', depth) }}" class="page-btn page-prev" title="Previous page" aria-label="Previous page">‹</a>
+        {% endif %}
+    {% else %}
+    <span class="page-btn page-prev disabled" aria-disabled="true">‹</span>
+    {% endif %}
+
+    {# Show page number buttons (only unique values) #}
+    {% for page_num in pages %}
+    {% if page_num == current %}
+    <span class="page-num page-current" aria-current="page">{{ page_num }}</span>
+    {% elif page_num == 1 %}
+    <a href="{{ rel_path(base_path + '/index.html', depth) }}" class="page-num" aria-label="Page {{ page_num }}">{{ page_num }}</a>
+    {% else %}
+    <a href="{{ rel_path(base_path + '/page-' + page_num|string + '.html', depth) }}" class="page-num" aria-label="Page {{ page_num }}">{{ page_num }}</a>
+    {% endif %}
+    {% endfor %}
+
+    {# Next page #}
+    {% if pagination.has_next %}
+    <a href="{{ rel_path(base_path + '/page-' + pagination.next_page|string + '.html', depth) }}" class="page-btn page-next" title="Next page" aria-label="Next page">›</a>
+    {% else %}
+    <span class="page-btn page-next disabled" aria-disabled="true">›</span>
+    {% endif %}
+
+    {# Skip forward 10 pages #}
+    {% if current + 10 <= total %}
+    <a href="{{ rel_path(base_path + '/page-' + (current + 10)|string + '.html', depth) }}" class="page-btn page-skip-forward" title="Skip forward 10 pages" aria-label="Skip forward 10 pages">››</a>
+    {% else %}
+    <span class="page-btn page-skip-forward disabled" aria-disabled="true">››</span>
+    {% endif %}
+
+    {# Last page button #}
+    {% if current < total %}
+    <a href="{{ rel_path(base_path + '/page-' + total|string + '.html', depth) }}" class="page-btn page-last" title="Last page" aria-label="Last page">›››</a>
+    {% else %}
+    <span class="page-btn page-last disabled" aria-disabled="true">›››</span>
+    {% endif %}
+</nav>
+{% endmacro %}
+
+{% block title %}{{ page_title }} - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="topic-index-page">
+    <nav class="breadcrumb">
+        <a href="{{ rel_path('index.html', depth) }}">Home</a> &raquo;
+        <span>{{ page_title }}</span>
+    </nav>
+
+    <header class="index-header">
+        <h1>{{ page_title }}</h1>
+        {% if page_description %}
+        <p class="index-description">{{ page_description }}</p>
+        {% endif %}
+    </header>
+
+    {% if pagination and pagination.total_pages > 1 %}
+    <div class="pagination" aria-label="Topic index pagination">
+        {{ pagination_nav(pagination, base_path) }}
+    </div>
+    {% endif %}
+
+    <section class="topic-list">
+        {% if topics %}
+        <ul>
+            {% for topic in topics %}
+            <li class="topic-card">
+                <h2>
+                    <a href="{{ rel_path('t/' + topic.slug + '/' + topic.id|string + '.html', depth) }}">
+                        {{ topic.title }}
+                    </a>
+                </h2>
+                <div class="topic-meta">
+                    {% if topic.category %}
+                    <span class="topic-category">
+                        <a href="{{ rel_path('c/' + topic.category.slug + '/' + topic.category.id|string + '/index.html', depth) }}"
+                           class="topic-category-badge"
+                           style="background-color: #{{ topic.category.color }}; color: #{{ topic.category.text_color }};">
+                            {{ topic.category.name }}
+                        </a>
+                    </span>
+                    {% endif %}
+                    <span class="topic-author">by {{ topic.username or 'Unknown' }}</span>
+                    <span class="topic-date">{{ topic.created_at|format_date }}</span>
+                    <span class="topic-replies">{{ topic.posts_count - 1 }} replies</span>
+                    <span class="topic-views">{{ topic.views }} views</span>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p>No topics found.</p>
+        {% endif %}
+    </section>
+
+    {% if pagination and pagination.total_pages > 1 %}
+    <div class="pagination pagination-bottom" aria-label="Topic index pagination">
+        {{ pagination_nav(pagination, base_path) }}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "chronicon-archive": {
+      "command": "/path/to/your/.venv/bin/python",
+      "args": [
+        "-m",
+        "chronicon.cli",
+        "mcp"
+      ],
+      "env": {
+        "DATABASE_URL": "sqlite:////path/to/your/archive.db"
+      }
+    }
+  }
+}

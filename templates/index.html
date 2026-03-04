@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}{{ site_title or 'Forum Archive' }}{% endblock %}
+
+{% block seo_meta %}
+{% if site_description %}
+<meta name="description" content="{{ site_description }}">
+{% endif %}
+<meta name="keywords" content="forum, archive, discussion, {{ site_title }}">
+{% endblock %}
+
+{% block og_tags %}
+{% if og_tags %}
+{% for key, value in og_tags.items() if value %}
+<meta property="{{ key }}" content="{{ value }}">
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block twitter_tags %}
+{% if twitter_tags %}
+{% for key, value in twitter_tags.items() if value %}
+<meta name="{{ key }}" content="{{ value }}">
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="homepage">
+    <header class="archive-header">
+        {% set local_banner = get_local_banner(0) %}
+        {% if local_banner %}
+        <img src="{{ local_banner }}" alt="{{ site_title }} community banner" class="banner-image">
+        {% elif banner_image_url %}
+        <img src="{{ banner_image_url }}" alt="{{ site_title }} community banner" class="banner-image">
+        {% endif %}
+        <h1>{{ site_title or 'Forum Archive' }}</h1>
+        {% if site_description %}
+        <p class="description">{{ site_description }}</p>
+        {% endif %}
+        <p class="archive-note">
+            This is a static archive of
+            <a href="{{ source_url }}" target="_blank">{{ source_url }}</a>
+        </p>
+    </header>
+
+    <section class="statistics">
+        <h2>Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ statistics.total_topics }}</div>
+                <div class="stat-label">Topics</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ statistics.total_posts }}</div>
+                <div class="stat-label">Posts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ statistics.total_users }}</div>
+                <div class="stat-label">Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ statistics.total_categories }}</div>
+                <div class="stat-label">Categories</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ statistics.total_views }}</div>
+                <div class="stat-label">Views</div>
+            </div>
+        </div>
+    </section>
+
+    {% if date_range %}
+    <section class="date-range-stats">
+        <h2>Archive Timeline</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ date_range.start }}</div>
+                <div class="stat-label">First Topic</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ date_range.end }}</div>
+                <div class="stat-label">Latest Topic</div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="categories">
+        <h2>Categories</h2>
+        <div class="category-grid">
+            {% for category in categories %}
+            <div class="category-card" style="border-left: 4px solid #{{ category.color }};">
+                <h3>
+                    <a href="c/{{ category.slug }}/{{ category.id }}/index.html">
+                        {{ category.name }}
+                    </a>
+                </h3>
+                {% if category.description %}
+                <p class="category-description">{{ category.description|striptags }}</p>
+                {% endif %}
+                <div class="category-meta">
+                    {{ category.topic_count }} topics
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% if top_contributors %}
+    <section class="contributors-section">
+        <h2><a href="users/index.html" class="section-header-link">Top Contributors</a></h2>
+        <p class="section-description">Most active users by post count</p>
+        <ul class="contributor-list">
+            {% for contributor in top_contributors %}
+            <li class="contributor-item">
+                <a href="users/{{ contributor.username }}.html" class="contributor-username">{{ contributor.username }}</a>
+                <span class="contributor-count">{{ contributor.post_count }} posts</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if top_views %}
+    <section class="top-topics">
+        <h2><a href="top/views/index.html" class="section-header-link">Top by Views</a></h2>
+        <p class="section-description">Most viewed topics</p>
+        <ul class="topic-list">
+            {% for topic in top_views %}
+            <li class="topic-card">
+                <h3>
+                    <a href="t/{{ topic.slug }}/{{ topic.id }}.html">
+                        {{ topic.title }}
+                    </a>
+                </h3>
+                <div class="topic-meta">
+                    {% if topic.category %}
+                    <span class="topic-category">
+                        <a href="c/{{ topic.category.slug }}/{{ topic.category.id }}/index.html"
+                           class="topic-category-badge"
+                           style="background-color: #{{ topic.category.color }}; color: #{{ topic.category.text_color }};">
+                            {{ topic.category.name }}
+                        </a>
+                    </span>
+                    {% endif %}
+                    <span class="topic-author">by {{ topic.username or 'Unknown' }}</span>
+                    <span class="topic-date">{{ topic.created_at|format_date }}</span>
+                    <span class="topic-replies">{{ topic.posts_count - 1 }} replies</span>
+                    <span class="topic-views">{{ topic.views }} views</span>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if top_replies %}
+    <section class="top-topics">
+        <h2><a href="top/replies/index.html" class="section-header-link">Top by Replies</a></h2>
+        <p class="section-description">Most discussed topics</p>
+        <ul class="topic-list">
+            {% for topic in top_replies %}
+            <li class="topic-card">
+                <h3>
+                    <a href="t/{{ topic.slug }}/{{ topic.id }}.html">
+                        {{ topic.title }}
+                    </a>
+                </h3>
+                <div class="topic-meta">
+                    {% if topic.category %}
+                    <span class="topic-category">
+                        <a href="c/{{ topic.category.slug }}/{{ topic.category.id }}/index.html"
+                           class="topic-category-badge"
+                           style="background-color: #{{ topic.category.color }}; color: #{{ topic.category.text_color }};">
+                            {{ topic.category.name }}
+                        </a>
+                    </span>
+                    {% endif %}
+                    <span class="topic-author">by {{ topic.username or 'Unknown' }}</span>
+                    <span class="topic-date">{{ topic.created_at|format_date }}</span>
+                    <span class="topic-replies">{{ topic.posts_count - 1 }} replies</span>
+                    <span class="topic-views">{{ topic.views }} views</span>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    <section class="recent-topics">
+        <h2><a href="latest/index.html" class="section-header-link">Recent Topics</a></h2>
+        <p class="section-description">Latest discussions</p>
+        <ul class="topic-list">
+            {% for topic in recent_topics %}
+            <li class="topic-card">
+                <h3>
+                    <a href="t/{{ topic.slug }}/{{ topic.id }}.html">
+                        {{ topic.title }}
+                    </a>
+                </h3>
+                <div class="topic-meta">
+                    {% if topic.category %}
+                    <span class="topic-category">
+                        <a href="c/{{ topic.category.slug }}/{{ topic.category.id }}/index.html"
+                           class="topic-category-badge"
+                           style="background-color: #{{ topic.category.color }}; color: #{{ topic.category.text_color }};">
+                            {{ topic.category.name }}
+                        </a>
+                    </span>
+                    {% endif %}
+                    <span class="topic-author">by {{ topic.username or 'Unknown' }}</span>
+                    <span class="topic-date">{{ topic.created_at|format_date }}</span>
+                    <span class="topic-replies">{{ topic.posts_count - 1 }} replies</span>
+                    <span class="topic-views">{{ topic.views }} views</span>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section class="archive-info">
+        <h2>Archive Information</h2>
+        <div class="info-grid">
+            <div class="info-item">
+                <strong>Archive Type:</strong> Static HTML (Offline-viewable)
+            </div>
+            <div class="info-item">
+                <strong>Source:</strong> <a href="{{ source_url }}" target="_blank">{{ source_url }}</a>
+            </div>
+            <div class="info-item">
+                <strong>Generated:</strong> {{ date_range.end if date_range else 'N/A' }}
+            </div>
+            {% if archiver_version %}
+            <div class="info-item">
+                <strong>Archiver:</strong> Chronicon v{{ archiver_version }}
+            </div>
+            {% endif %}
+            {% if discourse_version %}
+            <div class="info-item">
+                <strong>Discourse Version:</strong> {{ discourse_version }}
+            </div>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

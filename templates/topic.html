@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{# Macro for generating page URL #}
+{% macro page_url(slug, id, page_num) -%}
+    {%- if page_num == 1 -%}
+        {{ id }}.html
+    {%- else -%}
+        {{ id }}-page-{{ page_num }}.html
+    {%- endif -%}
+{%- endmacro %}
+
+{# Macro for enhanced pagination controls #}
+{% macro pagination_nav(topic, pagination) %}
+<nav class="pagination-controls">
+    {% set total = pagination.total_pages %}
+    {% set current = pagination.current_page %}
+
+    {# Build list of unique page numbers to display (up to 3) #}
+    {% set pages = [] %}
+    {% if current == 1 %}
+        {% set pages = [1] %}
+        {% if total >= 2 %}{% set pages = pages + [2] %}{% endif %}
+        {% if total >= 3 %}{% set pages = pages + [3] %}{% endif %}
+    {% elif current == total %}
+        {% if total >= 3 %}{% set pages = [total - 2] %}{% endif %}
+        {% if total >= 2 %}{% set pages = pages + [total - 1] %}{% endif %}
+        {% set pages = pages + [total] %}
+    {% else %}
+        {% set pages = [current - 1, current, current + 1] %}
+    {% endif %}
+
+    {# First page button #}
+    {% if current > 1 %}
+    <a href="{{ page_url(topic.slug, topic.id, 1) }}" class="page-btn page-first" title="First page" aria-label="First page">‹‹‹</a>
+    {% else %}
+    <span class="page-btn page-first disabled" aria-disabled="true">‹‹‹</span>
+    {% endif %}
+
+    {# Skip back 10 pages #}
+    {% if current > 10 %}
+    <a href="{{ page_url(topic.slug, topic.id, current - 10) }}" class="page-btn page-skip-back" title="Skip back 10 pages" aria-label="Skip back 10 pages">‹‹</a>
+    {% else %}
+    <span class="page-btn page-skip-back disabled" aria-disabled="true">‹‹</span>
+    {% endif %}
+
+    {# Previous page #}
+    {% if pagination.has_prev %}
+    <a href="{{ page_url(topic.slug, topic.id, pagination.prev_page) }}" class="page-btn page-prev" title="Previous page" aria-label="Previous page">‹</a>
+    {% else %}
+    <span class="page-btn page-prev disabled" aria-disabled="true">‹</span>
+    {% endif %}
+
+    {# Show page number buttons (only unique values) #}
+    {% for page_num in pages %}
+    {% if page_num == current %}
+    <span class="page-num page-current" aria-current="page">{{ page_num }}</span>
+    {% else %}
+    <a href="{{ page_url(topic.slug, topic.id, page_num) }}" class="page-num" aria-label="Page {{ page_num }}">{{ page_num }}</a>
+    {% endif %}
+    {% endfor %}
+
+    {# Next page #}
+    {% if pagination.has_next %}
+    <a href="{{ page_url(topic.slug, topic.id, pagination.next_page) }}" class="page-btn page-next" title="Next page" aria-label="Next page">›</a>
+    {% else %}
+    <span class="page-btn page-next disabled" aria-disabled="true">›</span>
+    {% endif %}
+
+    {# Skip forward 10 pages #}
+    {% if current + 10 <= total %}
+    <a href="{{ page_url(topic.slug, topic.id, current + 10) }}" class="page-btn page-skip-forward" title="Skip forward 10 pages" aria-label="Skip forward 10 pages">››</a>
+    {% else %}
+    <span class="page-btn page-skip-forward disabled" aria-disabled="true">››</span>
+    {% endif %}
+
+    {# Last page button #}
+    {% if current < total %}
+    <a href="{{ page_url(topic.slug, topic.id, total) }}" class="page-btn page-last" title="Last page" aria-label="Last page">›››</a>
+    {% else %}
+    <span class="page-btn page-last disabled" aria-disabled="true">›››</span>
+    {% endif %}
+</nav>
+{% endmacro %}
+
+{% block title %}{{ topic.title }} - {{ site_title }}{% endblock %}
+
+{% block seo_meta %}
+{% if meta_description %}
+<meta name="description" content="{{ meta_description }}">
+{% endif %}
+{% if keywords %}
+<meta name="keywords" content="{{ keywords }}">
+{% endif %}
+{% if author_name %}
+<meta name="author" content="{{ author_name }}">
+{% endif %}
+{% if topic.created_at %}
+<meta name="article:published_time" content="{{ topic.created_at.isoformat() }}">
+{% endif %}
+{% if topic.last_posted_at %}
+<meta name="article:modified_time" content="{{ topic.last_posted_at.isoformat() }}">
+{% endif %}
+{% endblock %}
+
+{% block og_tags %}
+{% if og_tags %}
+{% for key, value in og_tags.items() if value %}
+<meta property="{{ key }}" content="{{ value }}">
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block twitter_tags %}
+{% if twitter_tags %}
+{% for key, value in twitter_tags.items() if value %}
+<meta name="{{ key }}" content="{{ value }}">
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block json_ld %}
+{% if json_ld %}
+<script type="application/ld+json">
+{{ json_ld | tojson }}
+</script>
+{% endif %}
+{% endblock %}
+
+{% block extra_head %}
+{% if pagination and pagination.total_pages > 1 %}
+    {% if pagination.has_prev %}
+    {% if pagination.prev_page == 1 %}
+    <link rel="prev" href="{{ topic.slug }}-{{ topic.id }}.html">
+    {% else %}
+    <link rel="prev" href="{{ topic.slug }}-{{ topic.id }}-page-{{ pagination.prev_page }}.html">
+    {% endif %}
+    {% endif %}
+    {% if pagination.has_next %}
+    <link rel="next" href="{{ topic.slug }}-{{ topic.id }}-page-{{ pagination.next_page }}.html">
+    {% endif %}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="topic-page">
+    <nav class="breadcrumb">
+        <a href="{{ rel_path('index.html', depth) }}">Home</a> &raquo;
+        {% if category %}
+        <a href="{{ rel_path('c/' + category.slug + '/' + category.id|string + '/index.html', depth) }}">{{ category.name }}</a> &raquo;
+        {% endif %}
+        <span>{{ topic.title }}</span>
+    </nav>
+
+    <header class="topic-header">
+        <h1>{{ topic.title }}</h1>
+        <div class="topic-meta">
+            <span class="views">{{ topic.views }} views</span>
+            <span class="replies">{{ topic.posts_count - 1 }} replies</span>
+            <span class="date">Created {{ topic.created_at|format_date }}</span>
+        </div>
+    </header>
+
+    {% if pagination and pagination.total_pages > 1 %}
+    <div class="pagination" aria-label="Topic pagination">
+        {{ pagination_nav(topic, pagination) }}
+    </div>
+    {% endif %}
+
+    <div class="posts">
+        {% for post in posts %}
+        <article class="post" id="post-{{ post.post_number }}">
+            <div class="post-header">
+                <div class="post-author-section">
+                    {# Avatar display - wrapped in link #}
+                    {% if post.user_id %}
+                        {% set avatar_path = get_local_avatar(post.user_id, depth) %}
+                        <a href="{{ rel_path('users/' + post.username + '.html', depth) }}" class="avatar-link" title="{{ post.username }}'s profile">
+                            {% if avatar_path %}
+                                <img src="{{ avatar_path }}" alt="{{ post.username }}'s avatar" class="avatar avatar-post">
+                            {% else %}
+                                <div class="avatar avatar-post avatar-placeholder">{{ post.username[0]|upper }}</div>
+                            {% endif %}
+                        </a>
+                    {% else %}
+                        <div class="avatar avatar-post avatar-placeholder">?</div>
+                    {% endif %}
+
+                    {# Author name #}
+                    <div class="post-author-info">
+                        <strong><a href="{{ rel_path('users/' + post.username + '.html', depth) }}" class="post-author-link">{{ post.username }}</a></strong>
+                    </div>
+                </div>
+
+                <div class="post-meta">
+                    {% if source_url %}
+                    <a href="{{ source_url }}/t/{{ topic.slug }}/{{ topic.id }}/{{ post.post_number }}" class="post-number" target="_blank" rel="noopener noreferrer" title="View original post on source forum">#{{ post.post_number }}</a>
+                    {% else %}
+                    <span class="post-number">#{{ post.post_number }}</span>
+                    {% endif %}
+                    <span class="post-date">{{ post.created_at|format_date }}</span>
+                    {% if post.updated_at and post.updated_at != post.created_at %}
+                    <span class="post-edited">(edited {{ post.updated_at|format_date }})</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="post-content">
+                {{ post.cooked|safe }}
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+
+    {% if pagination and pagination.total_pages > 1 %}
+    <div class="pagination pagination-bottom" aria-label="Topic pagination">
+        {{ pagination_nav(topic, pagination) }}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

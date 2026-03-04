@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Search - {{ site_title or 'Forum Archive' }}{% endblock %}
+
+{% block seo_meta %}
+{% if meta_description %}
+<meta name="description" content="{{ meta_description }}">
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ asset_path('js/search.js', depth) }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="search-page">
+    <h1>Search Archive</h1>
+
+    <div class="search-box">
+        <input
+            type="text"
+            id="search-input"
+            placeholder="Search topics and posts..."
+            class="search-input"
+        />
+        <button id="search-button" class="search-button">Search</button>
+    </div>
+
+    <div id="search-results" class="search-results">
+        <p class="search-hint">Enter a search term to find topics and posts.</p>
+    </div>
+</div>
+{% endblock %}

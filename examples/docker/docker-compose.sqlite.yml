@@ -1,0 +1,149 @@
+# ABOUTME: SQLite production stack for Chronicon
+# ABOUTME: Lightweight stack with API server, watch daemon, and nginx (no external database)
+
+# SQLite production stack for Chronicon
+# Usage:
+#   1. cp .env.sqlite.example .env && edit .env (optional)
+#   2. docker compose -f docker-compose.sqlite.yml run --rm api \
+#        archive --urls https://example.com --output-dir /archives
+#   3. docker compose -f docker-compose.sqlite.yml up -d
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.api
+    container_name: chronicon-api
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=64m
+    environment:
+      DATABASE_URL: sqlite:////archives/archive.db
+    volumes:
+      # Read-write required for SQLite WAL mode
+      - ./archives:/archives
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - internal
+      # External network needed for fetching from Discourse APIs
+      - external
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.chronicon.service=api"
+      - "com.chronicon.stack=production-sqlite"
+
+  watch:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.api
+    container_name: chronicon-watch
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=64m
+      - /home/chronicon:noexec,nosuid,nodev,size=8m
+    environment:
+      DATABASE_URL: sqlite:////archives/archive.db
+      CHRONICON_OUTPUT_DIR: /archives
+      # Export format control
+      EXPORT_FORMATS: ${EXPORT_FORMATS:-html}
+      # Git push credentials (optional)
+      GIT_PUSH_ENABLED: ${GIT_PUSH_ENABLED:-false}
+      GIT_REMOTE_URL: ${GIT_REMOTE_URL:-}
+      GIT_USERNAME: ${GIT_USERNAME:-}
+      GIT_TOKEN: ${GIT_TOKEN:-}
+    volumes:
+      - ./archives:/archives
+      - ./config/.chronicon.toml:/home/chronicon/.chronicon.toml:ro
+    command: ["watch", "--output-dir", "/archives"]
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - internal
+      # External network needed for polling Discourse APIs
+      - external
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.chronicon.service=watch"
+      - "com.chronicon.stack=production-sqlite"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: chronicon-nginx
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=16m
+      - /var/cache/nginx:noexec,nosuid,nodev,size=32m
+      - /run:noexec,nosuid,nodev,size=8m
+    ports:
+      - "80:80"
+      # Uncomment for SSL (see nginx.conf for SSL configuration)
+      # - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./archives:/archives:ro
+      # Uncomment for SSL certificates
+      # - ./certbot/conf:/etc/letsencrypt:ro
+      # - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - internal
+      - external
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "com.chronicon.service=nginx"
+      - "com.chronicon.stack=production-sqlite"
+
+networks:
+  internal:
+    internal: true
+  external:

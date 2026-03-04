@@ -1,0 +1,173 @@
+# Docker Compose for Chronicon Testing (Alpine-based, Hardened)
+# Use this for manual testing of archiving and watch mode
+# Security: Hardened with seccomp, capabilities dropped, read-only filesystem
+
+services:
+  # Service 1: One-time archive creation
+  chronicon-archive:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.alpine
+    image: chronicon:alpine
+    container_name: chronicon-test-archive
+
+    # Security hardening (disabled for testing due to segfault issues)
+    # security_opt:
+    #   - no-new-privileges:true
+    #   - seccomp:seccomp.json
+    # cap_drop:
+    #   - ALL
+    # read_only: true
+
+    # Writable temporary filesystem
+    # tmpfs:
+    #   - /tmp:noexec,nosuid,nodev,mode=1777
+    #   - /home/chronicon:noexec,nosuid,nodev,mode=700
+
+    # Volumes
+    volumes:
+      - ./test-archives:/archives
+      - ./config/.chronicon.toml:/home/chronicon/.chronicon.toml:ro
+
+    # Environment
+    environment:
+      - CHRONICON_OUTPUT_DIR=/archives
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Process limits
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 2048
+      nproc:
+        soft: 512
+        hard: 512
+
+    # Command: archive a small category for testing
+    command: >
+      archive
+      --urls https://meta.discourse.org
+      --output-dir /archives
+      --categories 1
+      --formats html,markdown
+
+    networks:
+      - chronicon-net
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Labels
+    labels:
+      - "com.chronicon.service=archive"
+      - "com.chronicon.mode=test"
+      - "com.chronicon.security=hardened"
+
+  # Service 2: Continuous watch mode
+  chronicon-watch:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.alpine-watch
+    image: chronicon:alpine-watch
+    container_name: chronicon-test-watch
+
+    # Security hardening (disabled for testing due to segfault issues)
+    # security_opt:
+    #   - no-new-privileges:true
+    #   - seccomp:seccomp.json
+    # cap_drop:
+    #   - ALL
+    # read_only: true
+
+    # Writable temporary filesystem
+    # tmpfs:
+    #   - /tmp:noexec,nosuid,nodev,mode=1777
+    #   - /home/chronicon:noexec,nosuid,nodev,mode=700
+
+    # Volumes
+    volumes:
+      - ./test-archives:/archives
+      - ./config/.chronicon.toml:/home/chronicon/.chronicon.toml:ro
+      # Uncomment for git push support
+      # - ./config/ssh:/home/chronicon/.ssh:ro
+
+    # Environment
+    environment:
+      - CHRONICON_OUTPUT_DIR=/archives
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
+
+    # Ports
+    ports:
+      - "8080:8080"
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Process limits
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 2048
+      nproc:
+        soft: 512
+        hard: 512
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Networks
+    networks:
+      - chronicon-net
+
+    # Dependencies
+    depends_on:
+      chronicon-archive:
+        condition: service_completed_successfully
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Labels
+    labels:
+      - "com.chronicon.service=watch"
+      - "com.chronicon.mode=test"
+      - "com.chronicon.security=hardened"
+
+networks:
+  chronicon-net:
+    driver: bridge
