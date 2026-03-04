@@ -1064,7 +1064,8 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             fields = ", ".join([f"{k} = %s" for k in kwargs])
             values = list(kwargs.values()) + [site_url]
             cursor.execute(
-                f"UPDATE site_metadata SET {fields} WHERE site_url = %s", values  # type: ignore[arg-type]
+                f"UPDATE site_metadata SET {fields} WHERE site_url = %s",  # type: ignore[arg-type]
+                values,
             )
         else:
             # INSERT with provided kwargs
