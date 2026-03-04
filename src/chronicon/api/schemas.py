@@ -26,7 +26,7 @@ class FieldSelectionMixin:
         Returns:
             Dictionary with selected fields only
         """
-        data = self.model_dump(**kwargs)
+        data = self.model_dump(**kwargs)  # type: ignore[attr-defined]
         if fields:
             return {k: v for k, v in data.items() if k in fields}
         return data

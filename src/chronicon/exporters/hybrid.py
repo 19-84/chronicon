@@ -41,7 +41,7 @@ class HybridExporter(BaseExporter):
         include_users: bool = False,
         posts_per_page: int = 50,
         pagination_enabled: bool = True,
-        config: dict = None,
+        config: dict | None = None,
         progress=None,
         search_backend: str = "fts",
     ):
@@ -247,7 +247,7 @@ class HybridExporter(BaseExporter):
             Site URL string, or None if not found
         """
         try:
-            cursor = self.db.connection.cursor()
+            cursor = self.db.connection.cursor()  # type: ignore[attr-defined]
             cursor.execute("SELECT site_url FROM site_metadata LIMIT 1")
             row = cursor.fetchone()
             return row[0] if row else None

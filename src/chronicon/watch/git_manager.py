@@ -6,6 +6,7 @@
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from ..utils.logger import get_logger
 
@@ -462,7 +463,7 @@ class GitManager:
         except Exception:
             return None
 
-    def get_status_info(self) -> dict[str, any]:
+    def get_status_info(self) -> dict[str, Any]:
         """
         Get git status information.
 

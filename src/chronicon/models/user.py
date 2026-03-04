@@ -5,12 +5,20 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 
 class ValidationError(Exception):
     """Raised when model validation fails."""
 
     pass
+
+
+def _parse_datetime_optional(value: Any) -> datetime | None:
+    """Parse an optional datetime from a string or return as-is."""
+    if isinstance(value, str):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value
 
 
 @dataclass
@@ -28,10 +36,8 @@ class User:
     def __post_init__(self):
         """Convert string dates to datetime and validate data."""
         # Convert string dates to datetime if needed
-        if isinstance(self.created_at, str):
-            self.created_at = datetime.fromisoformat(
-                self.created_at.replace("Z", "+00:00")
-            )
+        # (dataclass accepts str at runtime, __post_init__ normalizes to datetime)
+        self.created_at = _parse_datetime_optional(self.created_at)
         self.validate()
 
     def validate(self):

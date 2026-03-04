@@ -46,19 +46,19 @@ async def list_resources() -> list[Resource]:
     """
     return [
         Resource(
-            uri="archive://stats",
+            uri="archive://stats",  # type: ignore[arg-type]
             name="Archive Statistics",
             description="Comprehensive statistics about the archived forum",
             mimeType="application/json",
         ),
         Resource(
-            uri="archive://categories",
+            uri="archive://categories",  # type: ignore[arg-type]
             name="Forum Categories",
             description="List of all categories in the archive",
             mimeType="application/json",
         ),
         Resource(
-            uri="archive://timeline",
+            uri="archive://timeline",  # type: ignore[arg-type]
             name="Activity Timeline",
             description="Monthly activity timeline showing topics and posts over time",
             mimeType="application/json",
@@ -66,7 +66,7 @@ async def list_resources() -> list[Resource]:
     ]
 
 
-@mcp_server.read_resource()
+@mcp_server.read_resource()  # type: ignore[arg-type]
 async def read_resource(uri: str) -> str:
     """
     Read a resource by URI.
@@ -81,14 +81,14 @@ async def read_resource(uri: str) -> str:
 
     if uri == "archive://stats":
         stats = db.get_archive_statistics()
-        return TextContent(
+        return TextContent(  # type: ignore[return-value]
             type="text",
             text=f"Archive Statistics:\n\n{_format_stats(stats)}",
         )
 
     if uri == "archive://categories":
         categories = db.get_all_categories()
-        return TextContent(
+        return TextContent(  # type: ignore[return-value]
             type="text",
             text=(
                 f"Categories ({len(categories)} total):"
@@ -98,7 +98,7 @@ async def read_resource(uri: str) -> str:
 
     if uri == "archive://timeline":
         timeline = db.get_activity_timeline()
-        return TextContent(
+        return TextContent(  # type: ignore[return-value]
             type="text",
             text=f"Activity Timeline:\n\n{_format_timeline(timeline)}",
         )
@@ -106,7 +106,7 @@ async def read_resource(uri: str) -> str:
     raise ValueError(f"Unknown resource URI: {uri}")
 
 
-@mcp_server.list_prompts()
+@mcp_server.list_prompts()  # type: ignore[arg-type]
 async def list_prompts() -> list[dict[str, Any]]:
     """
     List available MCP prompts.
@@ -130,7 +130,7 @@ async def list_prompts() -> list[dict[str, Any]]:
     ]
 
 
-@mcp_server.get_prompt()
+@mcp_server.get_prompt()  # type: ignore[arg-type]
 async def get_prompt(name: str, arguments: dict[str, str] | None = None) -> str:
     """
     Get a prompt by name.

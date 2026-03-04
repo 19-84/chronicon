@@ -89,20 +89,20 @@ class SiteConfigFetcher:
 
             # 1. Look for <link rel="icon" href="...">
             icon_link = soup.find("link", {"rel": "icon"})
-            if icon_link and icon_link.get("href"):
-                return icon_link["href"]
+            if icon_link and icon_link.get("href"):  # type: ignore[union-attr]
+                return icon_link["href"]  # type: ignore[index, return-value]
 
             # 2. Look for apple-touch-icon (often higher quality)
             apple_icon = soup.find("link", {"rel": "apple-touch-icon"})
-            if apple_icon and apple_icon.get("href"):
-                return apple_icon["href"]
+            if apple_icon and apple_icon.get("href"):  # type: ignore[union-attr]
+                return apple_icon["href"]  # type: ignore[index, return-value]
 
             # 3. Look for logo in header
             header = soup.find("header")
             if header:
-                logo_img = header.find("img", class_="logo")
-                if logo_img and logo_img.get("src"):
-                    return logo_img["src"]
+                logo_img = header.find("img", class_="logo")  # type: ignore[call-arg]
+                if logo_img and logo_img.get("src"):  # type: ignore[union-attr]
+                    return logo_img["src"]  # type: ignore[index, return-value]
 
             return None
 

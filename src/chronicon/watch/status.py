@@ -41,7 +41,7 @@ class WatchStatus:
     is_running: bool
     pid: int | None
     last_error: str | None = None
-    recent_cycles: list[WatchCycleResult] = None
+    recent_cycles: list[WatchCycleResult] | None = None
 
     def __post_init__(self):
         """Initialize recent_cycles list if None."""
@@ -127,6 +127,8 @@ class WatchStatus:
             self.last_error = result.error_message
 
         # Keep only last 50 cycles
+        if self.recent_cycles is None:
+            self.recent_cycles = []
         self.recent_cycles.append(result)
         if len(self.recent_cycles) > 50:
             self.recent_cycles = self.recent_cycles[-50:]

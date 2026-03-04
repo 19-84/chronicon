@@ -158,7 +158,7 @@ def test_factory_with_environment_variable(tmp_path, monkeypatch):
 
     # This is how the API uses it
     connection_string = os.getenv("DATABASE_URL")
-    db = get_database(connection_string)
+    db = get_database(connection_string)  # type: ignore[arg-type]
 
     from chronicon.storage.database import ArchiveDatabase
 

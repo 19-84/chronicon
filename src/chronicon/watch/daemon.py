@@ -21,6 +21,7 @@ from ..fetchers.api_client import DiscourseAPIClient
 from ..fetchers.assets import AssetDownloader
 from ..processors.html_parser import HTMLProcessor
 from ..storage.database import ArchiveDatabase
+from ..storage.database_base import ArchiveDatabaseBase
 from ..utils.logger import get_logger
 from ..utils.update_manager import UpdateManager
 from .git_manager import GitManager
@@ -77,7 +78,7 @@ class WatchDaemon:
         self.last_check_time: datetime | None = None
 
         # Database and API client (initialized in start())
-        self.db: ArchiveDatabase | None = None
+        self.db: ArchiveDatabaseBase | None = None
         self.client: DiscourseAPIClient | None = None
         self.site_url: str | None = None
 
@@ -233,6 +234,7 @@ class WatchDaemon:
 
         # Get site URL from metadata using the database-agnostic method
         try:
+            assert self.db is not None
             self.site_url = self.db.get_first_site_url()
             if not self.site_url:
                 log.error("No site metadata found in database")
@@ -374,6 +376,7 @@ class WatchDaemon:
                 result = self._run_update_cycle()
 
                 # Record result
+                assert self.status is not None
                 self.status.record_cycle(result)
 
                 # Save status
@@ -413,8 +416,9 @@ class WatchDaemon:
                     duration_seconds=(datetime.now() - cycle_start).total_seconds(),
                     error_message=str(e),
                 )
-                self.status.record_cycle(result)
-                self.status.save(self.status_file)
+                if self.status is not None:
+                    self.status.record_cycle(result)
+                    self.status.save(self.status_file)
                 self.consecutive_errors += 1
 
             # Check for too many consecutive errors
@@ -448,8 +452,9 @@ class WatchDaemon:
                 sleep_minutes = self.config.continuous_polling_interval
 
             next_check = datetime.now() + timedelta(minutes=sleep_minutes)
-            self.status.next_check = next_check.isoformat()
-            self.status.save(self.status_file)
+            if self.status is not None:
+                self.status.next_check = next_check.isoformat()
+                self.status.save(self.status_file)
 
             # Sleep until next check (with periodic wake-ups to check for signals)
             sleep_seconds = sleep_minutes * 60
@@ -463,7 +468,7 @@ class WatchDaemon:
         assert self.client is not None
         assert self.db is not None
         html_processor = HTMLProcessor()
-        asset_downloader = AssetDownloader(self.client, self.db, self.output_dir)
+        asset_downloader = AssetDownloader(self.client, self.db, self.output_dir)  # type: ignore[arg-type]
 
         for topic_id in topic_ids:
             posts = self.db.get_topic_posts(topic_id)
@@ -501,6 +506,10 @@ class WatchDaemon:
         """
         cycle_start = datetime.now()
         log.info("Starting update cycle...")
+
+        assert self.db is not None
+        assert self.client is not None
+        assert self.site_url is not None
 
         try:
             # Load category filter - config takes priority, DB is fallback

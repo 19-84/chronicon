@@ -51,7 +51,7 @@ def comprehensive_db(tmp_path):
             name="Alice Smith",
             trust_level=3,
             avatar_template="/avatar/{size}/1.png",
-            created_at="2024-01-01T00:00:00Z",
+            created_at="2024-01-01T00:00:00Z",  # type: ignore[arg-type]
         ),
         User(
             id=2,
@@ -59,7 +59,7 @@ def comprehensive_db(tmp_path):
             name="Bob Jones",
             trust_level=2,
             avatar_template="/avatar/{size}/2.png",
-            created_at="2024-01-02T00:00:00Z",
+            created_at="2024-01-02T00:00:00Z",  # type: ignore[arg-type]
         ),
     ]
     for user in users:
@@ -73,8 +73,8 @@ def comprehensive_db(tmp_path):
             slug="welcome",
             posts_count=3,
             views=100,
-            created_at="2024-01-01T00:00:00Z",
-            last_posted_at="2024-01-03T00:00:00Z",
+            created_at="2024-01-01T00:00:00Z",  # type: ignore[arg-type]
+            last_posted_at="2024-01-03T00:00:00Z",  # type: ignore[arg-type]
             user_id=1,
             category_id=1,
             closed=False,
@@ -89,8 +89,8 @@ def comprehensive_db(tmp_path):
             slug="python-best-practices",
             posts_count=5,
             views=250,
-            created_at="2024-01-02T00:00:00Z",
-            last_posted_at="2024-01-05T00:00:00Z",
+            created_at="2024-01-02T00:00:00Z",  # type: ignore[arg-type]
+            last_posted_at="2024-01-05T00:00:00Z",  # type: ignore[arg-type]
             user_id=2,
             category_id=2,
             closed=False,
@@ -105,8 +105,8 @@ def comprehensive_db(tmp_path):
             slug="django-vs-flask",
             posts_count=10,
             views=500,
-            created_at="2024-01-03T00:00:00Z",
-            last_posted_at="2024-01-10T00:00:00Z",
+            created_at="2024-01-03T00:00:00Z",  # type: ignore[arg-type]
+            last_posted_at="2024-01-10T00:00:00Z",  # type: ignore[arg-type]
             user_id=1,
             category_id=2,
             closed=False,
@@ -127,8 +127,8 @@ def comprehensive_db(tmp_path):
             post_number=i + 1,
             user_id=1 if i % 2 == 0 else 2,
             username="alice" if i % 2 == 0 else "bob",
-            created_at=f"2024-01-0{i + 1}T00:00:00Z",
-            updated_at=f"2024-01-0{i + 1}T00:00:00Z",
+            created_at=f"2024-01-0{i + 1}T00:00:00Z",  # type: ignore[arg-type]
+            updated_at=f"2024-01-0{i + 1}T00:00:00Z",  # type: ignore[arg-type]
             raw=f"Welcome post #{i + 1}",
             cooked=f"<p>Welcome post #{i + 1}</p>",
         )
@@ -142,8 +142,8 @@ def comprehensive_db(tmp_path):
             post_number=i + 1,
             user_id=2,
             username="bob",
-            created_at=f"2024-01-0{i + 2}T00:00:00Z",
-            updated_at=f"2024-01-0{i + 2}T00:00:00Z",
+            created_at=f"2024-01-0{i + 2}T00:00:00Z",  # type: ignore[arg-type]
+            updated_at=f"2024-01-0{i + 2}T00:00:00Z",  # type: ignore[arg-type]
             raw=f"Python discussion post #{i + 1}",
             cooked=f"<p>Python discussion post #{i + 1}</p>",
         )
@@ -301,39 +301,39 @@ async def test_mcp_full_workflow(comprehensive_db, monkeypatch):
     from chronicon.mcp.server import mcp_server
 
     # 1. Get statistics
-    result = await mcp_server.call_tool("get_statistics", {})
+    result = await mcp_server.call_tool("get_statistics", {})  # type: ignore[call-arg]
     assert "Total Topics: 3" in result
     assert "Total Posts: 8" in result
 
     # 2. List topics
-    result = await mcp_server.call_tool("get_topics", {"page": 1, "per_page": 10})
+    result = await mcp_server.call_tool("get_topics", {"page": 1, "per_page": 10})  # type: ignore[call-arg]
     assert "Welcome to the forum" in result
     assert "Python best practices" in result
 
     # 3. Get topic details
-    result = await mcp_server.call_tool("get_topic", {"topic_id": 2})
+    result = await mcp_server.call_tool("get_topic", {"topic_id": 2})  # type: ignore[call-arg]
     assert "Python best practices" in result
     assert "Posts: 5" in result
 
     # 4. Search topics
-    result = await mcp_server.call_tool("search_topics", {"query": "django"})
+    result = await mcp_server.call_tool("search_topics", {"query": "django"})  # type: ignore[call-arg]
     assert "Django" in result
 
     # 5. Get users
-    result = await mcp_server.call_tool("get_users", {"page": 1, "per_page": 10})
+    result = await mcp_server.call_tool("get_users", {"page": 1, "per_page": 10})  # type: ignore[call-arg]
     assert "alice" in result
     assert "bob" in result
 
     # 6. Read resources
-    result = await mcp_server.read_resource("archive://stats")
+    result = await mcp_server.read_resource("archive://stats")  # type: ignore[call-arg]
     assert "Total Topics: 3" in result.text
 
-    result = await mcp_server.read_resource("archive://categories")
+    result = await mcp_server.read_resource("archive://categories")  # type: ignore[call-arg]
     assert "General Discussion" in result.text
     assert "Python" in result.text
 
     # 7. Get prompts
-    result = await mcp_server.get_prompt("token-safety-guide", None)
+    result = await mcp_server.get_prompt("token-safety-guide", None)  # type: ignore[call-arg]
     assert "Token Safety Guide" in result
 
 

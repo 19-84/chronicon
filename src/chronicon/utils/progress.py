@@ -91,7 +91,7 @@ class CompactTimeElapsedColumn(ProgressColumn):
         Returns:
             Formatted text with elapsed time
         """
-        elapsed = int(task.elapsed)
+        elapsed = int(task.elapsed)  # type: ignore[arg-type]
 
         # Format based on duration
         if elapsed < 60:

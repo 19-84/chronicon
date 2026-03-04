@@ -173,17 +173,17 @@ def test_stop_daemon_success(mock_sleep, mock_kill, mock_config, temp_archive):
     # First call checks if process exists (signal 0), second sends SIGTERM,
     # subsequent calls check if process exited (should raise OSError when gone)
     def kill_side_effect(pid, sig):
-        if kill_side_effect.call_count == 0:
-            kill_side_effect.call_count += 1
+        if kill_side_effect.call_count == 0:  # type: ignore[attr-defined]
+            kill_side_effect.call_count += 1  # type: ignore[attr-defined]
             return  # Process exists (check with signal 0)
-        elif kill_side_effect.call_count == 1:
-            kill_side_effect.call_count += 1
+        elif kill_side_effect.call_count == 1:  # type: ignore[attr-defined]
+            kill_side_effect.call_count += 1  # type: ignore[attr-defined]
             return  # SIGTERM sent successfully
         else:
             # Process exited
             raise OSError()
 
-    kill_side_effect.call_count = 0
+    kill_side_effect.call_count = 0  # type: ignore[attr-defined]
     mock_kill.side_effect = kill_side_effect
 
     result = WatchDaemon.stop_daemon(temp_archive)

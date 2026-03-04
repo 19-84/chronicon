@@ -161,7 +161,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
                     "duration_seconds": cycle.duration_seconds,
                     "error_message": cycle.error_message,
                 }
-                for cycle in status.recent_cycles[-10:]  # Last 10 cycles
+                for cycle in (status.recent_cycles or [])[-10:]  # Last 10 cycles
             ],
         }
 

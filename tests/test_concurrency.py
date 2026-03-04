@@ -133,7 +133,7 @@ def test_process_topics():
         return f"processed_{topic}"
 
     topics = ["topic1", "topic2", "topic3"]
-    result = processor.process_topics(topics, mock_processor)
+    result = processor.process_topics(topics, mock_processor)  # type: ignore[arg-type]
 
     assert result.successful == 3
     assert result.failed == 0

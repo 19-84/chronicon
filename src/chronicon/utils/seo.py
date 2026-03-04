@@ -84,7 +84,7 @@ def generate_meta_description(
 
     # Try first post content
     if posts and len(posts) > 0:
-        first_post_text = strip_html(posts[0].cooked)
+        first_post_text = strip_html(posts[0].cooked or "")
         if first_post_text:
             return truncate_smartly(first_post_text, max_length)
 

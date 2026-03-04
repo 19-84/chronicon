@@ -5,12 +5,27 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 
 class ValidationError(Exception):
     """Raised when model validation fails."""
 
     pass
+
+
+def _parse_datetime(value: Any) -> datetime:
+    """Parse a datetime from a string or return as-is if already datetime."""
+    if isinstance(value, str):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value
+
+
+def _parse_datetime_optional(value: Any) -> datetime | None:
+    """Parse an optional datetime from a string or return as-is."""
+    if isinstance(value, str):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value
 
 
 @dataclass
@@ -61,18 +76,10 @@ class Topic:
     def __post_init__(self):
         """Convert string dates to datetime and validate data."""
         # Convert string dates to datetime if needed
-        if isinstance(self.created_at, str):
-            self.created_at = datetime.fromisoformat(
-                self.created_at.replace("Z", "+00:00")
-            )
-        if isinstance(self.updated_at, str):
-            self.updated_at = datetime.fromisoformat(
-                self.updated_at.replace("Z", "+00:00")
-            )
-        if isinstance(self.last_posted_at, str):
-            self.last_posted_at = datetime.fromisoformat(
-                self.last_posted_at.replace("Z", "+00:00")
-            )
+        # (dataclass accepts str at runtime, __post_init__ normalizes to datetime)
+        self.created_at = _parse_datetime(self.created_at)
+        self.updated_at = _parse_datetime_optional(self.updated_at)
+        self.last_posted_at = _parse_datetime_optional(self.last_posted_at)
         self.validate()
 
     def validate(self):

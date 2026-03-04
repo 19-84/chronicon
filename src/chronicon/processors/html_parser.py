@@ -856,7 +856,7 @@ class HTMLProcessor:
 
         return str(soup)
 
-    def add_image_dimensions(self, html: str, base_path: Path = None) -> str:
+    def add_image_dimensions(self, html: str, base_path: Path = None) -> str:  # type: ignore[arg-type]
         """
         Add explicit width and height attributes to images.
 
@@ -896,7 +896,7 @@ class HTMLProcessor:
 
                 if image_path.exists():
                     try:
-                        from PIL import Image
+                        from PIL import Image  # type: ignore[import-not-found]
 
                         with Image.open(image_path) as pil_img:
                             width, height = pil_img.size

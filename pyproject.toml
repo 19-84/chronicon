@@ -108,7 +108,9 @@ exclude = [
     "**/__pycache__",
     ".venv",
 ]
-pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.13"
 typeCheckingMode = "standard"
 reportMissingTypeStubs = false
 reportUnknownMemberType = false

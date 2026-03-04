@@ -47,7 +47,7 @@ def postgres_db(postgres_url):
 
     # Cleanup: Delete all test data
     try:
-        cursor = db.connection.cursor()
+        cursor = db.connection.cursor()  # type: ignore[attr-defined]
         cursor.execute("DELETE FROM posts")
         cursor.execute("DELETE FROM topics")
         cursor.execute("DELETE FROM users")
@@ -55,7 +55,7 @@ def postgres_db(postgres_url):
         cursor.execute("DELETE FROM site_metadata")
         cursor.execute("DELETE FROM assets")
         cursor.execute("DELETE FROM export_history")
-        db.connection.commit()
+        db.connection.commit()  # type: ignore[attr-defined]
     except Exception:
         pass
     finally:

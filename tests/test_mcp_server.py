@@ -104,7 +104,7 @@ async def test_list_tools():
     """Test that MCP server lists all tools."""
     from chronicon.mcp.server import list_tools
 
-    tools = await list_tools()
+    tools = await list_tools()  # type: ignore[call-arg]
 
     assert len(tools) > 0
 
@@ -243,7 +243,7 @@ async def test_list_resources():
     """Test that MCP server lists all resources."""
     from chronicon.mcp.server import list_resources
 
-    resources = await list_resources()
+    resources = await list_resources()  # type: ignore[call-arg]
 
     assert len(resources) > 0
 
@@ -259,11 +259,11 @@ async def test_read_resource_stats():
     """Test reading archive://stats resource."""
     from chronicon.mcp.server import read_resource
 
-    result = await read_resource("archive://stats")
+    result = await read_resource("archive://stats")  # type: ignore[arg-type]
 
-    assert result.type == "text"
-    assert "Total Topics:" in result.text
-    assert "Total Posts:" in result.text
+    assert result.type == "text"  # type: ignore[union-attr]
+    assert "Total Topics:" in result.text  # type: ignore[union-attr]
+    assert "Total Posts:" in result.text  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -271,11 +271,11 @@ async def test_read_resource_categories():
     """Test reading archive://categories resource."""
     from chronicon.mcp.server import read_resource
 
-    result = await read_resource("archive://categories")
+    result = await read_resource("archive://categories")  # type: ignore[arg-type]
 
-    assert result.type == "text"
-    assert "General" in result.text
-    assert "topics" in result.text
+    assert result.type == "text"  # type: ignore[union-attr]
+    assert "General" in result.text  # type: ignore[union-attr]
+    assert "topics" in result.text  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -283,10 +283,10 @@ async def test_read_resource_timeline():
     """Test reading archive://timeline resource."""
     from chronicon.mcp.server import read_resource
 
-    result = await read_resource("archive://timeline")
+    result = await read_resource("archive://timeline")  # type: ignore[arg-type]
 
-    assert result.type == "text"
-    assert "Activity Timeline" in result.text
+    assert result.type == "text"  # type: ignore[union-attr]
+    assert "Activity Timeline" in result.text  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -295,7 +295,7 @@ async def test_read_unknown_resource():
     from chronicon.mcp.server import read_resource
 
     with pytest.raises(ValueError) as exc_info:
-        await read_resource("archive://nonexistent")
+        await read_resource("archive://nonexistent")  # type: ignore[arg-type]
 
     assert "Unknown resource URI" in str(exc_info.value)
 
@@ -305,12 +305,12 @@ async def test_list_prompts():
     """Test that MCP server lists all prompts."""
     from chronicon.mcp.server import list_prompts
 
-    prompts = await list_prompts()
+    prompts = await list_prompts()  # type: ignore[call-arg]
 
     assert len(prompts) > 0
 
     # Check for expected prompts
-    prompt_names = [p["name"] for p in prompts]
+    prompt_names = [p["name"] for p in prompts]  # type: ignore[index]
     assert "token-safety-guide" in prompt_names
     assert "search-query-guide" in prompt_names
 

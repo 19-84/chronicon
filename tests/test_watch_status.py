@@ -89,8 +89,8 @@ def test_watch_status_record_successful_cycle():
     assert status.total_affected_topics == 3
     assert status.last_check == "2025-11-12T10:00:00"
     assert status.last_error is None
-    assert len(status.recent_cycles) == 1
-    assert status.recent_cycles[0] == result
+    assert len(status.recent_cycles) == 1  # type: ignore[arg-type]
+    assert status.recent_cycles[0] == result  # type: ignore[index]
 
 
 def test_watch_status_record_failed_cycle():
@@ -117,7 +117,7 @@ def test_watch_status_record_failed_cycle():
     assert status.total_modified_posts == 0
     assert status.total_affected_topics == 0
     assert status.last_error == "Connection timeout"
-    assert len(status.recent_cycles) == 1
+    assert len(status.recent_cycles) == 1  # type: ignore[arg-type]
 
 
 def test_watch_status_consecutive_errors_reset():
@@ -171,10 +171,10 @@ def test_watch_status_recent_cycles_limit():
         status.record_cycle(result)
 
     # Should only keep last 50
-    assert len(status.recent_cycles) == 50
+    assert len(status.recent_cycles) == 50  # type: ignore[arg-type]
     # Check that we kept the most recent ones
-    assert status.recent_cycles[0].timestamp == "2025-11-12T10:00:10"
-    assert status.recent_cycles[-1].timestamp == "2025-11-12T10:00:59"
+    assert status.recent_cycles[0].timestamp == "2025-11-12T10:00:10"  # type: ignore[index]
+    assert status.recent_cycles[-1].timestamp == "2025-11-12T10:00:59"  # type: ignore[index]
 
 
 def test_watch_status_save_and_load(tmp_path):
@@ -206,8 +206,8 @@ def test_watch_status_save_and_load(tmp_path):
     assert loaded_status.total_cycles == 1
     assert loaded_status.successful_cycles == 1
     assert loaded_status.total_new_posts == 5
-    assert len(loaded_status.recent_cycles) == 1
-    assert loaded_status.recent_cycles[0].timestamp == "2025-11-12T10:00:00"
+    assert len(loaded_status.recent_cycles) == 1  # type: ignore[arg-type]
+    assert loaded_status.recent_cycles[0].timestamp == "2025-11-12T10:00:00"  # type: ignore[index]
 
 
 def test_watch_status_load_nonexistent_file(tmp_path):

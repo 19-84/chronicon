@@ -68,6 +68,7 @@ class MarkdownGitHubExporter(BaseExporter):
         if self.include_users:
             total_items += self.db.get_users_count() + 1  # users + user index
 
+        task = None
         if self.progress:
             task = self.progress.add_task(
                 "[cyan]Exporting GitHub Markdown...", total=total_items
@@ -184,9 +185,10 @@ class MarkdownGitHubExporter(BaseExporter):
             topic_path.write_text("\n".join(lines), encoding="utf-8")
             first_page_path = topic_path
 
+        assert first_page_path is not None
         return first_page_path
 
-    def _get_site_url(self):
+    def _get_site_url(self) -> str | None:
         """
         Get the primary site URL from the database.
 
@@ -195,7 +197,7 @@ class MarkdownGitHubExporter(BaseExporter):
         """
         try:
             # Query database for site URL
-            cursor = self.db.connection.cursor()
+            cursor = self.db.connection.cursor()  # type: ignore[attr-defined]
             cursor.execute("SELECT site_url FROM site_metadata LIMIT 1")
             row = cursor.fetchone()
             return row[0] if row else None
@@ -562,6 +564,7 @@ class MarkdownGitHubExporter(BaseExporter):
             )
             lines.append("")
 
+            nav_parts: list[str] = []
             if total_pages > 1:
                 nav_parts = self._build_pagination_nav(page_num, total_pages)
                 lines.append(" | ".join(nav_parts))
@@ -656,6 +659,7 @@ class MarkdownGitHubExporter(BaseExporter):
             )
             lines.append("")
 
+            nav_parts: list[str] = []
             if total_pages > 1:
                 nav_parts = self._build_pagination_nav(page_num, total_pages)
                 lines.append(" | ".join(nav_parts))
@@ -738,6 +742,7 @@ class MarkdownGitHubExporter(BaseExporter):
                 lines.append(f"**{category.topic_count} topics in this category**")
                 lines.append("")
 
+                nav_parts: list[str] = []
                 if total_pages > 1:
                     nav_parts = self._build_pagination_nav(page_num, total_pages)
                     lines.append(" | ".join(nav_parts))
@@ -800,6 +805,7 @@ class MarkdownGitHubExporter(BaseExporter):
             )
             lines.append("")
 
+            nav_parts: list[str] = []
             if total_pages > 1:
                 nav_parts = self._build_pagination_nav(page_num, total_pages)
                 lines.append(" | ".join(nav_parts))

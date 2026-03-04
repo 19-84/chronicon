@@ -347,7 +347,7 @@ class ArchiveDatabaseBase(ABC):
     # Asset operations
     @abstractmethod
     def register_asset(
-        self, url: str, local_path: str, content_type: str = None
+        self, url: str, local_path: str, content_type: str | None = None
     ) -> None:
         """Register a downloaded asset."""
         pass

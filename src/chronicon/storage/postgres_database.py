@@ -325,7 +325,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             ORDER BY t.created_at DESC
             """
         )
-        colnames = [desc[0] for desc in cursor.description]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         results = []
         for row in cursor.fetchall():
             results.append(dict(zip(colnames, row, strict=True)))
@@ -354,7 +354,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             """,
             (category_id,),
         )
-        colnames = [desc[0] for desc in cursor.description]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         results = []
         for row in cursor.fetchall():
             results.append(dict(zip(colnames, row, strict=True)))
@@ -515,7 +515,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
         query = (
             f"SELECT * FROM topics ORDER BY {order_by} {order_dir} LIMIT %s OFFSET %s"
         )
-        cursor.execute(query, (per_page, offset))
+        cursor.execute(query, (per_page, offset))  # type: ignore[arg-type]
         return [self._row_to_topic(row) for row in cursor.fetchall()]
 
     def get_category_topics_paginated(
@@ -572,7 +572,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
         """Get the total number of users in the database."""
         cursor = self.connection.cursor()
         cursor.execute("SELECT COUNT(*) FROM users")
-        return cursor.fetchone()[0]
+        return cursor.fetchone()[0]  # type: ignore[index]
 
     def get_users_with_post_counts(
         self,
@@ -600,8 +600,8 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             ORDER BY {order_by} {order_dir}
             LIMIT %s OFFSET %s
         """
-        cursor.execute(query, (per_page, offset))
-        colnames = [desc[0] for desc in cursor.description]
+        cursor.execute(query, (per_page, offset))  # type: ignore[arg-type]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         results = []
         for row in cursor.fetchall():
             row_dict = dict(zip(colnames, row, strict=True))
@@ -632,7 +632,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             """,
             (user.username, limit),
         )
-        colnames = [desc[0] for desc in cursor.description]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         results = []
         for row in cursor.fetchall():
             row_dict = dict(zip(colnames, row, strict=True))
@@ -675,7 +675,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             """,
             (user.username, per_page, offset),
         )
-        colnames = [desc[0] for desc in cursor.description]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         results = []
         for row in cursor.fetchall():
             row_dict = dict(zip(colnames, row, strict=True))
@@ -701,7 +701,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
         cursor.execute(
             "SELECT COUNT(*) FROM posts WHERE username = %s", (user.username,)
         )
-        return cursor.fetchone()[0]
+        return cursor.fetchone()[0]  # type: ignore[index]
 
     def get_statistics(self) -> dict:
         """
@@ -714,19 +714,19 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
         cursor = self.connection.cursor()
 
         cursor.execute("SELECT COUNT(*) as count FROM topics")
-        total_topics = cursor.fetchone()[0]
+        total_topics = cursor.fetchone()[0]  # type: ignore[index]
 
         cursor.execute("SELECT COUNT(*) as count FROM posts")
-        total_posts = cursor.fetchone()[0]
+        total_posts = cursor.fetchone()[0]  # type: ignore[index]
 
         cursor.execute("SELECT COUNT(*) as count FROM users")
-        total_users = cursor.fetchone()[0]
+        total_users = cursor.fetchone()[0]  # type: ignore[index]
 
         cursor.execute("SELECT COUNT(*) as count FROM categories")
-        total_categories = cursor.fetchone()[0]
+        total_categories = cursor.fetchone()[0]  # type: ignore[index]
 
         cursor.execute("SELECT COALESCE(SUM(views), 0) as count FROM topics")
-        total_views = cursor.fetchone()[0]
+        total_views = cursor.fetchone()[0]  # type: ignore[index]
 
         return {
             "total_topics": total_topics,
@@ -767,7 +767,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             " FROM categories"
             " ORDER BY topic_count DESC LIMIT 5"
         )
-        colnames = [desc[0] for desc in cursor.description]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         stats["popular_categories"] = [
             dict(zip(colnames, row, strict=True)) for row in cursor.fetchall()
         ]
@@ -780,7 +780,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
         )
         row = cursor.fetchone()
         if row:
-            colnames = [desc[0] for desc in cursor.description]
+            colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
             export_data = dict(zip(colnames, row, strict=True))
             # Convert datetime to ISO format string for compatibility
             if export_data.get("exported_at"):
@@ -801,7 +801,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             GROUP BY month
             ORDER BY month
         """)
-        colnames = [desc[0] for desc in cursor.description]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         return [dict(zip(colnames, row, strict=True)) for row in cursor.fetchall()]
 
     def get_topic_posts_paginated(
@@ -821,7 +821,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
         """Get the total number of posts in a topic."""
         cursor = self.connection.cursor()
         cursor.execute("SELECT COUNT(*) FROM posts WHERE topic_id = %s", (topic_id,))
-        return cursor.fetchone()[0]
+        return cursor.fetchone()[0]  # type: ignore[index]
 
     # Full-text search operations (PostgreSQL tsvector/tsquery)
     def search_topics(
@@ -892,7 +892,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             """,
             (query,),
         )
-        return cursor.fetchone()[0]
+        return cursor.fetchone()[0]  # type: ignore[index]
 
     def search_posts_count(self, query: str) -> int:
         """
@@ -912,7 +912,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             """,
             (query,),
         )
-        return cursor.fetchone()[0]
+        return cursor.fetchone()[0]  # type: ignore[index]
 
     def rebuild_search_index(self) -> None:
         """
@@ -970,7 +970,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
 
     # Asset operations
     def register_asset(
-        self, url: str, local_path: str, content_type: str = None
+        self, url: str, local_path: str, content_type: str | None = None
     ) -> None:
         """Register a downloaded asset."""
         cursor = self.connection.cursor()
@@ -1014,7 +1014,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
         cursor.execute("SELECT * FROM assets WHERE url = %s", (url,))
         row = cursor.fetchone()
         if row:
-            colnames = [desc[0] for desc in cursor.description]
+            colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
             return dict(zip(colnames, row, strict=True))
         return None
 
@@ -1036,7 +1036,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             "SELECT * FROM assets WHERE local_path LIKE %s ORDER BY url",
             (f"%/images/{topic_id}/%",),
         )
-        colnames = [desc[0] for desc in cursor.description]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         return [dict(zip(colnames, row, strict=True)) for row in cursor.fetchall()]
 
     def get_all_assets(self) -> list[dict]:
@@ -1048,7 +1048,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
         """
         cursor = self.connection.cursor()
         cursor.execute("SELECT * FROM assets ORDER BY url")
-        colnames = [desc[0] for desc in cursor.description]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         return [dict(zip(colnames, row, strict=True)) for row in cursor.fetchall()]
 
     # Metadata operations
@@ -1064,7 +1064,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             fields = ", ".join([f"{k} = %s" for k in kwargs])
             values = list(kwargs.values()) + [site_url]
             cursor.execute(
-                f"UPDATE site_metadata SET {fields} WHERE site_url = %s", values
+                f"UPDATE site_metadata SET {fields} WHERE site_url = %s", values  # type: ignore[arg-type]
             )
         else:
             # INSERT with provided kwargs
@@ -1072,7 +1072,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             fields = ", ".join(kwargs.keys())
             placeholders = ", ".join(["%s" for _ in kwargs])
             cursor.execute(
-                f"INSERT INTO site_metadata ({fields}) VALUES ({placeholders})",
+                f"INSERT INTO site_metadata ({fields}) VALUES ({placeholders})",  # type: ignore[arg-type]
                 list(kwargs.values()),
             )
         self.connection.commit()
@@ -1084,7 +1084,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
         row = cursor.fetchone()
         if row:
             # Get column names
-            colnames = [desc[0] for desc in cursor.description]
+            colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
             return dict(zip(colnames, row, strict=True))
         return {}
 
@@ -1126,7 +1126,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             )
         self.connection.commit()
 
-    def get_all_tags(self, limit: int = None) -> list[dict]:
+    def get_all_tags(self, limit: int | None = None) -> list[dict]:
         """
         Get all tags sorted by topic count.
 
@@ -1195,7 +1195,7 @@ class PostgresArchiveDatabase(ArchiveDatabaseBase):
             "SELECT * FROM export_history ORDER BY exported_at DESC LIMIT %s",
             (limit,),
         )
-        colnames = [desc[0] for desc in cursor.description]
+        colnames = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
         return [dict(zip(colnames, row, strict=True)) for row in cursor.fetchall()]
 
     # Category filter operations

@@ -19,7 +19,9 @@ from .schema import create_schema
 class ArchiveDatabase(ArchiveDatabaseBase):
     """Main database interface for the archive."""
 
-    def __init__(self, db_path: Path = None, connection_string: str = None):
+    def __init__(
+        self, db_path: Path | None = None, connection_string: str | None = None
+    ):
         """
         Initialize database connection and create schema if needed.
 
@@ -1089,7 +1091,7 @@ class ArchiveDatabase(ArchiveDatabaseBase):
 
     # Asset operations
     def register_asset(
-        self, url: str, local_path: str, content_type: str = None
+        self, url: str, local_path: str, content_type: str | None = None
     ) -> None:
         """Register a downloaded asset."""
         cursor = self.connection.cursor()
@@ -1279,7 +1281,7 @@ class ArchiveDatabase(ArchiveDatabaseBase):
             )
         self.connection.commit()
 
-    def get_all_tags(self, limit: int = None) -> list[dict]:
+    def get_all_tags(self, limit: int | None = None) -> list[dict]:
         """
         Get all tags sorted by topic count.
 

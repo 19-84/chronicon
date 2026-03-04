@@ -37,9 +37,9 @@ class HTMLStaticExporter(BaseExporter):
         self,
         db,
         output_dir: Path,
-        template_dir: Path = None,
+        template_dir: Path | None = None,
         include_users: bool = False,
-        config: dict = None,
+        config: dict | None = None,
         posts_per_page: int = 50,
         pagination_enabled: bool = True,
         progress=None,
@@ -196,7 +196,7 @@ class HTMLStaticExporter(BaseExporter):
         """
         try:
             # Query database for site URL
-            cursor = self.db.connection.cursor()
+            cursor = self.db.connection.cursor()  # type: ignore[attr-defined]
             cursor.execute("SELECT site_url FROM site_metadata LIMIT 1")
             row = cursor.fetchone()
             return row[0] if row else None
@@ -482,6 +482,7 @@ class HTMLStaticExporter(BaseExporter):
 
     def export(self) -> None:
         """Main export orchestration."""
+        main_task = None
         if self.progress:
             # Calculate total steps for progress tracking
             # Base steps: index, latest, top, categories, topics, assets
@@ -564,27 +565,27 @@ class HTMLStaticExporter(BaseExporter):
 
         # Add username and category to recent topics
         for topic in recent_topics:
-            topic.username = self._get_topic_author_username(topic)
+            topic.username = self._get_topic_author_username(topic)  # type: ignore[attr-defined]
             if topic.category_id:
-                topic.category = self.db.get_category(topic.category_id)
+                topic.category = self.db.get_category(topic.category_id)  # type: ignore[attr-defined]
             else:
-                topic.category = None
+                topic.category = None  # type: ignore[attr-defined]
 
         # Add username and category to top views
         for topic in top_views:
-            topic.username = self._get_topic_author_username(topic)
+            topic.username = self._get_topic_author_username(topic)  # type: ignore[attr-defined]
             if topic.category_id:
-                topic.category = self.db.get_category(topic.category_id)
+                topic.category = self.db.get_category(topic.category_id)  # type: ignore[attr-defined]
             else:
-                topic.category = None
+                topic.category = None  # type: ignore[attr-defined]
 
         # Add username and category to top replies
         for topic in top_replies:
-            topic.username = self._get_topic_author_username(topic)
+            topic.username = self._get_topic_author_username(topic)  # type: ignore[attr-defined]
             if topic.category_id:
-                topic.category = self.db.get_category(topic.category_id)
+                topic.category = self.db.get_category(topic.category_id)  # type: ignore[attr-defined]
             else:
-                topic.category = None
+                topic.category = None  # type: ignore[attr-defined]
 
         # Get site metadata for banner/hero section
         site_url = self._get_site_url()
@@ -735,7 +736,7 @@ class HTMLStaticExporter(BaseExporter):
 
                 # Add username to topics
                 for topic in topics:
-                    topic.username = self._get_topic_author_username(topic)
+                    topic.username = self._get_topic_author_username(topic)  # type: ignore[attr-defined]
 
                 # Generate SEO context for category
                 site_url = self._get_site_url()
@@ -845,11 +846,11 @@ class HTMLStaticExporter(BaseExporter):
 
             # Add username and category to each topic
             for topic in topics:
-                topic.username = self._get_topic_author_username(topic)
+                topic.username = self._get_topic_author_username(topic)  # type: ignore[attr-defined]
                 if topic.category_id:
-                    topic.category = self.db.get_category(topic.category_id)
+                    topic.category = self.db.get_category(topic.category_id)  # type: ignore[attr-defined]
                 else:
-                    topic.category = None
+                    topic.category = None  # type: ignore[attr-defined]
 
             # Create pagination context
             pagination = (
@@ -940,11 +941,11 @@ class HTMLStaticExporter(BaseExporter):
 
             # Add username and category to each topic
             for topic in topics:
-                topic.username = self._get_topic_author_username(topic)
+                topic.username = self._get_topic_author_username(topic)  # type: ignore[attr-defined]
                 if topic.category_id:
-                    topic.category = self.db.get_category(topic.category_id)
+                    topic.category = self.db.get_category(topic.category_id)  # type: ignore[attr-defined]
                 else:
-                    topic.category = None
+                    topic.category = None  # type: ignore[attr-defined]
 
             # Create pagination context
             pagination = (
@@ -1476,7 +1477,7 @@ class HTMLStaticExporter(BaseExporter):
 
                 # Add username to topics
                 for topic in topics:
-                    topic.username = self._get_topic_author_username(topic)
+                    topic.username = self._get_topic_author_username(topic)  # type: ignore[attr-defined]
 
                 # Generate SEO context for category
                 site_url = self._get_site_url()

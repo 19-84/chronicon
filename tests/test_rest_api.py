@@ -41,7 +41,7 @@ def test_db(tmp_path):
         name="Alice Smith",
         trust_level=3,
         avatar_template="/avatar/{size}/1.png",
-        created_at="2024-01-01T00:00:00Z",
+        created_at="2024-01-01T00:00:00Z",  # type: ignore[arg-type]
     )
     db.insert_user(user)
 
@@ -51,8 +51,8 @@ def test_db(tmp_path):
         slug="python-programming",
         posts_count=2,
         views=100,
-        created_at="2024-01-01T00:00:00Z",
-        last_posted_at="2024-01-02T00:00:00Z",
+        created_at="2024-01-01T00:00:00Z",  # type: ignore[arg-type]
+        last_posted_at="2024-01-02T00:00:00Z",  # type: ignore[arg-type]
         user_id=1,
         category_id=1,
         closed=False,
@@ -69,8 +69,8 @@ def test_db(tmp_path):
         post_number=1,
         user_id=1,
         username="alice",
-        created_at="2024-01-01T00:00:00Z",
-        updated_at="2024-01-01T00:00:00Z",
+        created_at="2024-01-01T00:00:00Z",  # type: ignore[arg-type]
+        updated_at="2024-01-01T00:00:00Z",  # type: ignore[arg-type]
         raw="This is a post about Python programming",
         cooked="<p>This is a post about Python programming</p>",
     )
@@ -80,8 +80,8 @@ def test_db(tmp_path):
         post_number=2,
         user_id=1,
         username="alice",
-        created_at="2024-01-02T00:00:00Z",
-        updated_at="2024-01-02T00:00:00Z",
+        created_at="2024-01-02T00:00:00Z",  # type: ignore[arg-type]
+        updated_at="2024-01-02T00:00:00Z",  # type: ignore[arg-type]
         raw="More details about Python",
         cooked="<p>More details about Python</p>",
     )

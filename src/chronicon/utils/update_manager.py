@@ -10,7 +10,7 @@ from ..fetchers.api_client import DiscourseAPIClient
 from ..fetchers.posts import PostFetcher
 from ..fetchers.topics import TopicFetcher
 from ..models.post import Post
-from ..storage.database import ArchiveDatabase
+from ..storage.database_base import ArchiveDatabaseBase
 from .logger import get_logger
 
 log = get_logger(__name__)
@@ -34,7 +34,7 @@ class UpdateManager:
 
     def __init__(
         self,
-        db: ArchiveDatabase,
+        db: ArchiveDatabaseBase,
         client: DiscourseAPIClient,
         category_ids: list[int] | None = None,
     ):
@@ -49,8 +49,8 @@ class UpdateManager:
         self.db = db
         self.client = client
         self.category_ids = category_ids
-        self.post_fetcher = PostFetcher(client, db)
-        self.topic_fetcher = TopicFetcher(client, db)
+        self.post_fetcher = PostFetcher(client, db)  # type: ignore[arg-type]
+        self.topic_fetcher = TopicFetcher(client, db)  # type: ignore[arg-type]
         self._topics_to_regenerate: set[int] = set()
         self._new_topic_ids: set[int] = set()  # Track truly new topics
         self._affected_usernames: set[str] = set()
@@ -339,7 +339,7 @@ class UpdateManager:
         log.info("Checking for topics with missing posts...")
 
         # Find topics that claim to have posts but don't have any in the DB
-        cursor = self.db.connection.cursor()
+        cursor = self.db.connection.cursor()  # type: ignore[attr-defined]
         query = """
             SELECT t.id, t.title, t.posts_count
             FROM topics t

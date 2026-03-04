@@ -72,4 +72,4 @@ class CategoryFetcher:
         except Exception as e:
             log.warning(f"Error fetching category {category_id}: {e}")
 
-        return None
+        return None  # type: ignore[return-value]

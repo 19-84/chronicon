@@ -3,14 +3,20 @@
 
 """Base exporter class."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..storage.database_base import ArchiveDatabaseBase
 
 
 class BaseExporter(ABC):
     """Base class for all exporters."""
 
-    def __init__(self, db, output_dir: Path, progress=None):
+    def __init__(self, db: ArchiveDatabaseBase, output_dir: Path, progress: Any = None):
         """
         Initialize exporter.
 

@@ -259,7 +259,7 @@ def main() -> None:
         run_backfill_posts(args, config)
 
 
-def run_archive(args: argparse.Namespace, config: Config) -> None:
+def run_archive(args: argparse.Namespace, config: Config) -> int | None:
     """Execute archive command."""
     console.print("[bold blue]Archiving forums...[/bold blue]")
 
@@ -343,13 +343,13 @@ def _archive_site(
     formats: list,
     text_only: bool,
     include_users: bool,
-    category_ids: list,
-    since_date: str,
+    category_ids: list | None,
+    since_date: str | None,
     workers: int,
     rate_limit: float,
     config: Config,
     use_sweep: bool = False,
-    sweep_start_id: int = None,
+    sweep_start_id: int | None = None,
     sweep_end_id: int = 1,
     search_backend: str = "fts",
 ):
@@ -407,8 +407,8 @@ def _archive_site(
     client = DiscourseAPIClient(site_url, rate_limit=rate_limit)
 
     # Initialize fetchers
-    category_fetcher = CategoryFetcher(client, db)
-    topic_fetcher = TopicFetcher(client, db)
+    category_fetcher = CategoryFetcher(client, db)  # type: ignore[arg-type]
+    topic_fetcher = TopicFetcher(client, db)  # type: ignore[arg-type]
 
     # Track phase timings
     import time as time_module
@@ -660,7 +660,7 @@ def _archive_site(
             from .fetchers.users import UserFetcher
 
             phase_start = time_module.time()
-            user_fetcher = UserFetcher(client, db)
+            user_fetcher = UserFetcher(client, db)  # type: ignore[arg-type]
 
             user_task = progress.add_task(
                 f"[cyan]Fetching {len(usernames_to_fetch)} user profiles...",
@@ -697,7 +697,7 @@ def _archive_site(
         phase_start = time_module.time()
         metadata_task = progress.add_task("[cyan]Fetching site metadata...", total=None)
 
-        site_config_fetcher = SiteConfigFetcher(client, db)
+        site_config_fetcher = SiteConfigFetcher(client, db)  # type: ignore[arg-type]
         site_config_fetcher.fetch_and_store_site_metadata()
 
         # Update last sync date
@@ -725,7 +725,7 @@ def _archive_site(
             # Initialize asset downloader (make it available to update_stats_display)
             asset_downloader = AssetDownloader(
                 client=client,
-                db=db,
+                db=db,  # type: ignore[arg-type]
                 output_dir=output_dir / "assets",
                 text_only=False,
             )
@@ -942,6 +942,7 @@ def _archive_site(
                 for topic in topics_with_seo_images:
                     try:
                         # Download SEO/Open Graph image
+                        assert topic.image_url is not None
                         local_path = asset_downloader.download_seo_image(
                             topic.image_url, callback=seo_callback
                         )
@@ -1945,13 +1946,13 @@ def run_mcp(args: argparse.Namespace, config: Config) -> None:
     if not database_url:
         console.print(
             "[red]Error: DATABASE_URL environment variable not set.[/red]",
-            file=sys.stderr,
+            file=sys.stderr,  # type: ignore[call-arg]
         )
         console.print(
             "Set it to your database path, e.g.:\n"
             "  export DATABASE_URL=sqlite:///./archives/meta.discourse.org/archive.db\n"
             "  export DATABASE_URL=postgresql://localhost/chronicon",
-            file=sys.stderr,
+            file=sys.stderr,  # type: ignore[call-arg]
         )
         sys.exit(1)
 
@@ -1964,11 +1965,11 @@ def run_mcp(args: argparse.Namespace, config: Config) -> None:
     except ImportError:
         console.print(
             "[red]Error: MCP server dependencies are required.[/red]",
-            file=sys.stderr,
+            file=sys.stderr,  # type: ignore[call-arg]
         )
         console.print(
             "Install with: pip install chronicon[mcp]",
-            file=sys.stderr,
+            file=sys.stderr,  # type: ignore[call-arg]
         )
         sys.exit(1)
     except KeyboardInterrupt:
@@ -2096,7 +2097,7 @@ def run_backfill_posts(args: argparse.Namespace, config: Config) -> None:
     )
 
     # Check how many topics need backfill
-    cursor = db.connection.cursor()
+    cursor = db.connection.cursor()  # type: ignore[attr-defined]
     if category_ids:
         cursor.execute(count_query, category_ids)
     else:
@@ -2144,7 +2145,7 @@ def run_backfill_posts(args: argparse.Namespace, config: Config) -> None:
 
         from chronicon.fetchers.topics import TopicFetcher
 
-        topic_fetcher = TopicFetcher(client, db)
+        topic_fetcher = TopicFetcher(client, db)  # type: ignore[arg-type]
 
         for row in rows:
             topic_id = row[0]

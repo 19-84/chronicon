@@ -493,7 +493,7 @@ def test_github_markdown_image_download(tmp_path, sample_db):
 
         return local_path
 
-    asset_downloader.download_image = mock_download_image
+    asset_downloader.download_image = mock_download_image  # type: ignore[attr-defined]
 
     # Create exporter with asset downloader
     exporter = MarkdownGitHubExporter(
@@ -562,7 +562,7 @@ def test_github_markdown_image_download_failure(tmp_path, sample_db):
     def mock_download_image_fails(url, topic_id):
         return None  # Simulate download failure
 
-    asset_downloader.download_image = mock_download_image_fails
+    asset_downloader.download_image = mock_download_image_fails  # type: ignore[attr-defined]
 
     # Create exporter with asset downloader
     exporter = MarkdownGitHubExporter(
