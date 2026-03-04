@@ -356,6 +356,7 @@ class TestLocalPathHelpers:
         )
 
         (temp_dir / "assets" / "avatars").mkdir(parents=True, exist_ok=True)
+        assert user.local_avatar_path is not None
         Path(user.local_avatar_path).write_bytes(b"avatar")
 
         db.insert_user(user)

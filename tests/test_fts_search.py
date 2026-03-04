@@ -186,12 +186,13 @@ def test_search_topics_postgres():
     # Skip in CI/CD unless DATABASE_URL is set
     import os
 
-    if not os.getenv("TEST_POSTGRES_URL"):
+    postgres_url = os.getenv("TEST_POSTGRES_URL")
+    if not postgres_url:
         pytest.skip("TEST_POSTGRES_URL not set")
 
-    from chronicon.storage.postgres_database import PostgreSQLDatabase
+    from chronicon.storage.postgres_database import PostgresArchiveDatabase
 
-    db = PostgreSQLDatabase(os.getenv("TEST_POSTGRES_URL"))
+    db = PostgresArchiveDatabase(postgres_url)
 
     # Insert test topics
     topic1 = Topic(

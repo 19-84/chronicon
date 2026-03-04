@@ -178,7 +178,7 @@ class TestPostgresCRUD:
         # Add site metadata
         postgres_db.update_site_metadata(
             "https://test.example.com",
-            title="Test Forum",
+            site_title="Test Forum",
         )
 
         # Now should return the URL
