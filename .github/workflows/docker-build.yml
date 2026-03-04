@@ -52,17 +52,28 @@ jobs:
         flavor: |
           suffix=-${{ matrix.variant }},onlatest=true
 
-    - name: Build and push Docker image
+    - name: Build Docker image for testing
       uses: docker/build-push-action@v6
       with:
         context: .
         file: ./Dockerfile${{ matrix.variant == 'alpine' && '.alpine' || '' }}
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        load: true
+        tags: chronicon-test:${{ matrix.variant }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
     - name: Test Docker image
       run: |
-        docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ matrix.variant }} chronicon --version
+        docker run --rm chronicon-test:${{ matrix.variant }} --help
+
+    - name: Build and push Docker image
+      if: github.event_name != 'pull_request'
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./Dockerfile${{ matrix.variant == 'alpine' && '.alpine' || '' }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
