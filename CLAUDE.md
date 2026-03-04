@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Commits
+
+**No attribution.** Never include `Co-Authored-By` lines in commit messages. Do not attribute commits to Claude or any AI assistant.
+
 ## Project Overview
 
 Chronicon is a multi-format Discourse forum archiving tool built with Python 3.11+. It exports forums to three formats:
