@@ -38,7 +38,7 @@
             {% for topic in topic_results %}
             <div class="search-result search-result-topic">
                 <div class="result-type-badge topic-badge">Topic</div>
-                <h3><a href="/archive/t/{{ topic.slug }}/{{ topic.id }}.html">{{ topic.title }}</a></h3>
+                <h3><a href="/archive/t/{{ topic.slug }}/{{ topic.id }}/">{{ topic.title }}</a></h3>
                 <p class="meta">
                     <span class="date">{{ topic.created_at[:10] if topic.created_at else '' }}</span>
                     {% if topic.category_name %}
@@ -61,7 +61,7 @@
             {% for post in post_results %}
             <div class="search-result search-result-post {% if post.is_original %}search-result-original{% else %}search-result-reply{% endif %}">
                 <div class="result-type-badge {% if post.is_original %}original-badge{% else %}reply-badge{% endif %}">{{ post.post_type }}</div>
-                <h3><a href="/archive/t/{{ post.slug }}/{{ post.topic_id }}.html#post-{{ post.post_number }}">{{ post.title }}</a></h3>
+                <h3><a href="/archive/t/{{ post.slug }}/{{ post.topic_id }}/#post-{{ post.post_number }}">{{ post.title }}</a></h3>
                 <p class="meta">
                     <span class="author">by {{ post.username or 'Unknown' }}</span>
                     <span class="date">{{ post.created_at[:10] if post.created_at else '' }}</span>

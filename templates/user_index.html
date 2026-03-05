@@ -116,16 +116,17 @@
             {% set post_count = user_data.post_count %}
             <li class="contributor-item">
                 <div class="user-info">
-                    {% set local_avatar = get_local_avatar(user.id, 1) %}
+                    {% set local_avatar = get_local_avatar(user.id, depth) %}
                     {% if local_avatar %}
                     <img src="{{ local_avatar }}" alt="{{ user.username }}'s avatar" class="user-avatar-small">
                     {% elif user.avatar_template %}
-                    <img src="{{ user.avatar_template.replace('{size}', '48') }}" alt="{{ user.username }}'s avatar" class="user-avatar-small">
+                    {# Don't use raw Discourse URL — it won't resolve in static archive #}
+                    <div class="avatar-placeholder-small">{{ user.username[0]|upper }}</div>
                     {% else %}
                     <div class="avatar-placeholder-small">{{ user.username[0]|upper }}</div>
                     {% endif %}
                     <div class="user-details">
-                        <a href="{{ rel_path('users/' + user.username + '.html', depth) }}" class="contributor-username">
+                        <a href="{{ rel_path('u/' + user.username + '/', depth) }}" class="contributor-username">
                             {{ user.username }}
                         </a>
                         {% if user.name %}

@@ -116,7 +116,7 @@
             {% for topic in topics %}
             <li class="topic-card">
                 <h2>
-                    <a href="{{ rel_path('t/' + topic.slug + '/' + topic.id|string + '.html', depth) }}">
+                    <a href="{{ rel_path('t/' + topic.slug + '/' + topic.id|string + '/', depth) }}">
                         {{ topic.title }}
                     </a>
                 </h2>

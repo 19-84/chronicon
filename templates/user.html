@@ -3,9 +3,9 @@
 {# Macro for generating page URL #}
 {% macro page_url(username, page_num) -%}
     {%- if page_num == 1 -%}
-        {{ username }}.html
+        index.html
     {%- else -%}
-        {{ username }}-page-{{ page_num }}.html
+        page-{{ page_num }}.html
     {%- endif -%}
 {%- endmacro %}
 
@@ -94,16 +94,17 @@
 <div class="user-profile">
     <nav class="breadcrumb">
         <a href="{{ rel_path('index.html', depth) }}">Home</a> &raquo;
-        <a href="{{ rel_path('users/index.html', depth) }}">Users</a> &raquo;
+        <a href="{{ rel_path('u/index.html', depth) }}">Users</a> &raquo;
         <span>{{ user.username }}</span>
     </nav>
 
     <header class="user-header">
-        {% set local_avatar = get_local_avatar(user.id, 1) %}
+        {% set local_avatar = get_local_avatar(user.id, depth) %}
         {% if local_avatar %}
         <img src="{{ local_avatar }}" alt="{{ user.username }}'s avatar" class="avatar">
         {% elif user.avatar_template %}
-        <img src="{{ user.avatar_template.replace('{size}', '96') }}" alt="{{ user.username }}'s avatar" class="avatar">
+        {# Don't use raw Discourse URL — it won't resolve in static archive #}
+        <div class="avatar-placeholder">{{ user.username[0]|upper }}</div>
         {% else %}
         <div class="avatar-placeholder">{{ user.username[0]|upper }}</div>
         {% endif %}
@@ -131,7 +132,7 @@
             <li class="user-post-card">
                 <div class="user-post-header">
                     <h3>
-                        <a href="{{ rel_path('t/' + post_data.topic_slug + '/' + post_data.topic_id|string + '.html', depth) }}#post-{{ post.post_number }}">
+                        <a href="{{ rel_path('t/' + post_data.topic_slug + '/' + post_data.topic_id|string + '/', depth) }}#post-{{ post.post_number }}">
                             {{ post_data.topic_title }}
                         </a>
                     </h3>

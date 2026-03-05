@@ -3,9 +3,9 @@
 {# Macro for generating page URL #}
 {% macro page_url(slug, id, page_num) -%}
     {%- if page_num == 1 -%}
-        {{ id }}.html
+        index.html
     {%- else -%}
-        {{ id }}-page-{{ page_num }}.html
+        page-{{ page_num }}.html
     {%- endif -%}
 {%- endmacro %}
 
@@ -129,14 +129,10 @@
 {% block extra_head %}
 {% if pagination and pagination.total_pages > 1 %}
     {% if pagination.has_prev %}
-    {% if pagination.prev_page == 1 %}
-    <link rel="prev" href="{{ topic.slug }}-{{ topic.id }}.html">
-    {% else %}
-    <link rel="prev" href="{{ topic.slug }}-{{ topic.id }}-page-{{ pagination.prev_page }}.html">
-    {% endif %}
+    <link rel="prev" href="{{ page_url(topic.slug, topic.id, pagination.prev_page) }}">
     {% endif %}
     {% if pagination.has_next %}
-    <link rel="next" href="{{ topic.slug }}-{{ topic.id }}-page-{{ pagination.next_page }}.html">
+    <link rel="next" href="{{ page_url(topic.slug, topic.id, pagination.next_page) }}">
     {% endif %}
 {% endif %}
 {% endblock %}
@@ -174,7 +170,7 @@
                     {# Avatar display - wrapped in link #}
                     {% if post.user_id %}
                         {% set avatar_path = get_local_avatar(post.user_id, depth) %}
-                        <a href="{{ rel_path('users/' + post.username + '.html', depth) }}" class="avatar-link" title="{{ post.username }}'s profile">
+                        <a href="{{ rel_path('u/' + post.username + '/', depth) }}" class="avatar-link" title="{{ post.username }}'s profile">
                             {% if avatar_path %}
                                 <img src="{{ avatar_path }}" alt="{{ post.username }}'s avatar" class="avatar avatar-post">
                             {% else %}
@@ -187,7 +183,7 @@
 
                     {# Author name #}
                     <div class="post-author-info">
-                        <strong><a href="{{ rel_path('users/' + post.username + '.html', depth) }}" class="post-author-link">{{ post.username }}</a></strong>
+                        <strong><a href="{{ rel_path('u/' + post.username + '/', depth) }}" class="post-author-link">{{ post.username }}</a></strong>
                     </div>
                 </div>
 

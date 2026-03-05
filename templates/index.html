@@ -25,6 +25,14 @@
 {% endif %}
 {% endblock %}
 
+{% block json_ld %}
+{% if json_ld %}
+<script type="application/ld+json">
+{{ json_ld | tojson }}
+</script>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="homepage">
     <header class="archive-header">
@@ -109,12 +117,12 @@
 
     {% if top_contributors %}
     <section class="contributors-section">
-        <h2><a href="users/index.html" class="section-header-link">Top Contributors</a></h2>
+        <h2><a href="u/index.html" class="section-header-link">Top Contributors</a></h2>
         <p class="section-description">Most active users by post count</p>
         <ul class="contributor-list">
             {% for contributor in top_contributors %}
             <li class="contributor-item">
-                <a href="users/{{ contributor.username }}.html" class="contributor-username">{{ contributor.username }}</a>
+                <a href="u/{{ contributor.username }}/" class="contributor-username">{{ contributor.username }}</a>
                 <span class="contributor-count">{{ contributor.post_count }} posts</span>
             </li>
             {% endfor %}
@@ -130,7 +138,7 @@
             {% for topic in top_views %}
             <li class="topic-card">
                 <h3>
-                    <a href="t/{{ topic.slug }}/{{ topic.id }}.html">
+                    <a href="t/{{ topic.slug }}/{{ topic.id }}/">
                         {{ topic.title }}
                     </a>
                 </h3>
@@ -163,7 +171,7 @@
             {% for topic in top_replies %}
             <li class="topic-card">
                 <h3>
-                    <a href="t/{{ topic.slug }}/{{ topic.id }}.html">
+                    <a href="t/{{ topic.slug }}/{{ topic.id }}/">
                         {{ topic.title }}
                     </a>
                 </h3>
@@ -195,7 +203,7 @@
             {% for topic in recent_topics %}
             <li class="topic-card">
                 <h3>
-                    <a href="t/{{ topic.slug }}/{{ topic.id }}.html">
+                    <a href="t/{{ topic.slug }}/{{ topic.id }}/">
                         {{ topic.title }}
                     </a>
                 </h3>

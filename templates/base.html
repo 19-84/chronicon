@@ -31,6 +31,7 @@
     <!-- Extra head content (e.g., pagination links) -->
     {% block extra_head %}{% endblock %}
 
+    <link rel="icon" href="{{ asset_path('site/favicon.ico', depth) }}" type="image/x-icon">
     <link rel="stylesheet" href="{{ asset_path('css/archive.css', depth) }}">
     {% block extra_css %}{% endblock %}
 </head>
