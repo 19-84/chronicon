@@ -303,6 +303,49 @@ def generate_category_og_tags(
     return tags
 
 
+def generate_homepage_json_ld(
+    site_title: str,
+    site_description: str | None,
+    canonical_url: str | None,
+    logo_url: str | None = None,
+) -> dict:
+    """
+    Generate JSON-LD structured data for the homepage.
+
+    Uses schema.org WebSite type with optional SearchAction.
+
+    Args:
+        site_title: Site title
+        site_description: Optional site description
+        canonical_url: Optional canonical URL
+        logo_url: Optional logo URL (absolute)
+
+    Returns:
+        Dictionary representing JSON-LD structured data
+    """
+    data: dict = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": site_title,
+    }
+
+    if site_description:
+        data["description"] = site_description
+
+    if canonical_url:
+        data["url"] = canonical_url
+        data["potentialAction"] = {
+            "@type": "SearchAction",
+            "target": f"{canonical_url}/search.html?q={{search_term_string}}",
+            "query-input": "required name=search_term_string",
+        }
+
+    if logo_url:
+        data["image"] = logo_url
+
+    return data
+
+
 def generate_homepage_og_tags(
     site_title: str,
     site_description: str | None,

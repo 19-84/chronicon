@@ -67,8 +67,8 @@ class SearchIndexer:
                 if category:
                     category_name = category.name
 
-            # Generate topic URL (matches HTML export structure: t/{slug}/{id}.html)
-            topic_url = f"t/{topic.slug}/{topic.id}.html"
+            # Generate topic URL (matches HTML export structure: t/{slug}/{id}/)
+            topic_url = f"t/{topic.slug}/{topic.id}/"
 
             items.append(
                 {
@@ -94,7 +94,7 @@ class SearchIndexer:
                 excerpt = self.extract_excerpt(content)
 
                 # Generate post URL with anchor (matches HTML export structure)
-                post_url = f"t/{topic.slug}/{topic.id}.html#post-{post.post_number}"
+                post_url = f"t/{topic.slug}/{topic.id}/#post-{post.post_number}"
 
                 items.append(
                     {

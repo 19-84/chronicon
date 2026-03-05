@@ -3,7 +3,9 @@
 
 """Asset downloading and management for archived forums."""
 
+import logging
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
@@ -13,6 +15,8 @@ from pathlib import Path
 from ..storage.database import ArchiveDatabase
 from ..utils.validators import ValidationError, sanitize_filename, validate_file_size
 from .api_client import DiscourseAPIClient
+
+log = logging.getLogger(__name__)
 
 
 class AssetDownloader:
@@ -160,22 +164,43 @@ class AssetDownloader:
 
         return self._download_file(url, topic_dir, callback=callback)
 
-    def download_emoji(self, name: str) -> Path | None:
+    def download_emoji_url(
+        self, url: str, callback: Callable | None = None
+    ) -> Path | None:
         """
-        Download an emoji image.
+        Download an emoji image to the shared emoji directory.
+
+        If the emoji was previously downloaded to a per-topic directory,
+        copies it to the shared emoji directory and updates the DB.
 
         Args:
-            name: Emoji name
+            url: Full emoji URL (e.g., CDN or forum-hosted)
+            callback: Optional callback function(url, success, cached, bytes_downloaded)
 
         Returns:
             Local path to downloaded emoji or None
         """
-        if self.text_only:
+        if self.text_only or not url:
             return None
 
-        # Construct emoji URL
-        url = f"{self.client.base_url}/images/emoji/twitter/{name}.png"
-        return self._download_file(url, self.emoji_dir)
+        # Check if cached in a per-topic dir — migrate to shared emoji dir
+        import shutil
+
+        cached_path = self.db.get_asset_path(url)
+        if cached_path:
+            cached = Path(cached_path)
+            emoji_dir_str = str(self.emoji_dir)
+            if cached.exists() and emoji_dir_str not in cached_path:
+                # Cached in wrong dir — copy to emoji dir and re-register
+                dest = self.emoji_dir / cached.name
+                if not dest.exists():
+                    shutil.copy2(cached, dest)
+                self.db.register_asset(url, str(dest), None)
+                if callback:
+                    callback(url, success=True, cached=True, bytes_downloaded=0)
+                return dest
+
+        return self._download_file(url, self.emoji_dir, callback=callback)
 
     def download_seo_image(
         self, url: str, callback: Callable | None = None
@@ -227,21 +252,56 @@ class AssetDownloader:
                 # Don't print, let callback handle it
                 self._download_file(url, self.site_dir, callback=callback)
 
-        # Download metadata-specified assets (actual site logo and banner)
+        # Download metadata-specified assets (actual site logo, favicon, and banner)
         if site_metadata:
             # Download site logo if available
             logo_url = site_metadata.get("logo_url")
             if logo_url and logo_url.strip():
                 with suppress(Exception):
-                    # Don't print, let callback handle it
                     self._download_file(logo_url, self.site_dir, callback=callback)
+
+            # Download favicon if available
+            favicon_url = site_metadata.get("favicon_url")
+            if favicon_url and favicon_url.strip():
+                with suppress(Exception):
+                    self._download_file(favicon_url, self.site_dir, callback=callback)
 
             # Download banner image if available
             banner_url = site_metadata.get("banner_image_url")
             if banner_url and banner_url.strip():
                 with suppress(Exception):
-                    # Don't print, let callback handle it
                     self._download_file(banner_url, self.site_dir, callback=callback)
+
+    def migrate_emoji_to_shared_dir(self, emoji_urls: list[str]) -> int:
+        """
+        Migrate emoji cached in per-topic dirs to the shared emoji directory.
+
+        Call before batch-downloading emoji to ensure DB paths point to
+        the shared dir, not scattered per-topic dirs.
+
+        Args:
+            emoji_urls: List of emoji URLs to check and migrate
+
+        Returns:
+            Number of emoji migrated
+        """
+        import shutil
+
+        migrated = 0
+        emoji_dir_str = str(self.emoji_dir)
+        for url in emoji_urls:
+            cached_path = self.db.get_asset_path(url)
+            if not cached_path or emoji_dir_str in cached_path:
+                continue
+            cached = Path(cached_path)
+            if not cached.exists():
+                continue
+            dest = self.emoji_dir / cached.name
+            if not dest.exists():
+                shutil.copy2(cached, dest)
+            self.db.register_asset(url, str(dest), None)
+            migrated += 1
+        return migrated
 
     def get_local_site_asset_path(self, asset_url: str) -> Path | None:
         """
@@ -269,15 +329,17 @@ class AssetDownloader:
         target_dir: Path,
         max_workers: int = 20,
         callback: Callable | None = None,
-    ) -> list[Path]:
+        retry_failures: bool = True,
+    ) -> list[Path | None]:
         """
-        Download multiple URLs concurrently.
+        Download multiple URLs concurrently with automatic retry of failures.
 
         Args:
             urls: List of URLs to download
             target_dir: Target directory for downloads
             max_workers: Maximum number of concurrent downloads (default 20)
             callback: Optional callback function(url, success, cached, bytes_downloaded)
+            retry_failures: If True, retry failed downloads at lower concurrency
 
         Returns:
             List of local paths (None for failed downloads)
@@ -288,7 +350,8 @@ class AssetDownloader:
         # Ensure target directory exists
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        results = []
+        results: list[Path | None] = []
+        failed_urls: list[str] = []
 
         # Use ThreadPoolExecutor for concurrent I/O-bound downloads
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -300,13 +363,38 @@ class AssetDownloader:
 
             # Collect results as they complete
             for future in as_completed(future_to_url):
-                _ = future_to_url[future]
+                url = future_to_url[future]
                 try:
                     path = future.result()
                     results.append(path)
+                    if path is None:
+                        failed_urls.append(url)
                 except Exception:
-                    # Don't print, let callback handle it
                     results.append(None)
+                    failed_urls.append(url)
+
+        # Retry failed downloads at lower concurrency
+        if retry_failures and failed_urls:
+            log.info(f"Retrying {len(failed_urls)} failed downloads (concurrency: 5)")
+            retry_workers = min(5, len(failed_urls))
+            recovered = 0
+            with ThreadPoolExecutor(max_workers=retry_workers) as executor:
+                future_to_url = {
+                    executor.submit(self._download_file, url, target_dir, callback): url
+                    for url in failed_urls
+                }
+                for future in as_completed(future_to_url):
+                    try:
+                        path = future.result()
+                        if path is not None:
+                            results.append(path)
+                            recovered += 1
+                            # Correct double-counted failure from first pass
+                            self.stats["failed"] = max(0, self.stats["failed"] - 1)
+                    except Exception:
+                        pass
+            if recovered:
+                log.info(f"Recovered {recovered}/{len(failed_urls)} on retry")
 
         return results
 
@@ -343,6 +431,28 @@ class AssetDownloader:
             # Extract and sanitize filename from URL
             parsed = urllib.parse.urlparse(url)
             raw_filename = Path(parsed.path).name or "asset"
+
+            # Letter avatars have path like /v4/letter/a/82dd89/144.png
+            # All resolve to "144.png" causing collisions — use full path
+            if "/letter/" in parsed.path:
+                parts = [p for p in parsed.path.split("/") if p]
+                try:
+                    letter_idx = parts.index("letter")
+                    raw_filename = "_".join(parts[letter_idx:])
+                    # Ensure extension
+                    if not Path(raw_filename).suffix:
+                        raw_filename += ".png"
+                except ValueError:
+                    pass  # Fall through to default filename
+
+            # Regular avatars: /user_avatar/site/username/{size}/id.png
+            # All sizes resolve to same filename — include size for uniqueness
+            elif "/user_avatar/" in parsed.path:
+                parts = [p for p in parsed.path.split("/") if p]
+                # Pattern: user_avatar / site / username / size / filename
+                if len(parts) >= 5:
+                    size = parts[-2]  # e.g., "48", "96", "144"
+                    raw_filename = f"{size}_{raw_filename}"
             try:
                 filename = sanitize_filename(raw_filename)
             except ValidationError:
@@ -350,55 +460,72 @@ class AssetDownloader:
 
             local_path = target_dir / filename
 
-            # Download file
-            req = urllib.request.Request(url)
-            req.add_header("User-Agent", "Chronicon/1.0.0")
+            # CDN requests get longer timeout and more retries
+            is_cdn = "cdn" in url or "cloudfront" in url
+            max_retries = 6 if is_cdn else 4
+            timeout = 30 if is_cdn else 15
 
-            with urllib.request.urlopen(req, timeout=15) as response:
-                # Check file size before downloading
-                content_length = response.headers.get("Content-Length")
-                if content_length:
-                    try:
-                        validate_file_size(int(content_length))
-                    except ValidationError as e:
-                        raise ValueError(f"File too large: {e}") from e
-
-                content = response.read()
-                content_type = response.headers.get("Content-Type")
-                bytes_downloaded = len(content)
-
-                # Validate actual downloaded size
+            # Download file with exponential backoff on rate limiting
+            for attempt in range(max_retries + 1):
                 try:
-                    validate_file_size(bytes_downloaded)
-                except ValidationError as e:
-                    raise ValueError(f"Downloaded file too large: {e}") from e
+                    req = urllib.request.Request(url)
+                    req.add_header("User-Agent", "Chronicon/1.0.0")
+                    # Add Referer for CDN requests that check origin
+                    if is_cdn:
+                        req.add_header("Referer", self.client.base_url + "/")
 
-                with open(local_path, "wb") as f:
-                    f.write(content)
+                    with urllib.request.urlopen(req, timeout=timeout) as response:
+                        content_length = response.headers.get("Content-Length")
+                        if content_length:
+                            try:
+                                validate_file_size(int(content_length))
+                            except ValidationError as e:
+                                raise ValueError(f"File too large: {e}") from e
 
-                # Register in database
-                self.db.register_asset(url, str(local_path), content_type)
+                        content = response.read()
+                        content_type = response.headers.get("Content-Type")
+                        bytes_downloaded = len(content)
 
-                # Update statistics
-                self.stats["downloaded"] += 1
-                self.stats["bytes_downloaded"] += bytes_downloaded
+                        try:
+                            validate_file_size(bytes_downloaded)
+                        except ValidationError as e:
+                            raise ValueError(f"Downloaded file too large: {e}") from e
 
-                # Call callback if provided
-                if callback:
-                    callback(
-                        url,
-                        success=True,
-                        cached=False,
-                        bytes_downloaded=bytes_downloaded,
-                    )
+                        with open(local_path, "wb") as f:
+                            f.write(content)
 
-                return local_path
+                        self.db.register_asset(url, str(local_path), content_type)
+
+                        self.stats["downloaded"] += 1
+                        self.stats["bytes_downloaded"] += bytes_downloaded
+
+                        if callback:
+                            callback(
+                                url,
+                                success=True,
+                                cached=False,
+                                bytes_downloaded=bytes_downloaded,
+                            )
+
+                        return local_path
+
+                except urllib.error.HTTPError as e:
+                    # Retry on 429 (rate limit) and 5xx (server errors)
+                    if e.code in (429, 500, 502, 503, 504) and attempt < max_retries:
+                        backoff = 2**attempt  # 1s, 2s, 4s, 8s
+                        time.sleep(backoff)
+                        continue
+                    raise
+                except (urllib.error.URLError, TimeoutError, OSError):
+                    if attempt < max_retries:
+                        backoff = 2**attempt
+                        time.sleep(backoff)
+                        continue
+                    raise
 
         except Exception:
-            # Update failure statistics
             self.stats["failed"] += 1
 
-            # Call callback if provided
             if callback:
                 callback(url, success=False, cached=False, bytes_downloaded=0)
 

@@ -183,17 +183,57 @@ class TestAssetPipelineIntegration:
         with patch("urllib.request.urlopen") as mock_urlopen:
             mock_response = MagicMock()
             mock_response.read.return_value = b"image_data"
-            mock_response.headers.get.return_value = "image/png"
+            mock_response.headers.get = Mock(
+                side_effect=lambda key, default=None: {
+                    "Content-Type": "image/png",
+                }.get(key, default)
+            )
             mock_response.__enter__.return_value = mock_response
             mock_urlopen.return_value = mock_response
 
             # Download concurrently
             results = downloader.batch_download(urls, temp_dir / "batch")
 
-        # Should have downloaded all
-        assert len(results) == len(urls)
-        # Should have made concurrent requests
+        # Should have downloaded all successfully (no retries needed)
         assert mock_urlopen.call_count == len(urls)
+        successful = [r for r in results if r is not None]
+        assert len(successful) == len(urls)
+
+    def test_batch_download_retries_failures(self, temp_dir, mock_db):
+        """Test that batch_download retries failed downloads at lower concurrency."""
+        mock_client = Mock(spec=DiscourseAPIClient)
+        mock_client.base_url = "https://meta.discourse.org"
+
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        urls = [f"https://example.com/image{i}.png" for i in range(5)]
+
+        call_counts = {}
+
+        def side_effect(req, timeout=15):
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            call_counts[url] = call_counts.get(url, 0) + 1
+            # Fail on first attempt, succeed on retry
+            if call_counts[url] == 1:
+                raise TimeoutError("CDN timeout")
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = b"image_data"
+            mock_resp.headers.get = Mock(
+                side_effect=lambda key, default=None: {
+                    "Content-Type": "image/png",
+                }.get(key, default)
+            )
+            mock_resp.__enter__.return_value = mock_resp
+            return mock_resp
+
+        with patch("urllib.request.urlopen", side_effect=side_effect):
+            results = downloader.batch_download(
+                urls, temp_dir / "retry_batch", max_workers=5
+            )
+
+        # All should eventually succeed via retry
+        successful = [r for r in results if r is not None]
+        assert len(successful) == len(urls)
 
     def test_error_handling_graceful_degradation(self, temp_dir, mock_db):
         """Test that errors are handled gracefully without breaking pipeline."""

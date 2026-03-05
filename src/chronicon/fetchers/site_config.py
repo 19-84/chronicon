@@ -66,49 +66,61 @@ class SiteConfigFetcher:
             log.warning(f"Error fetching about info: {e}")
             return None
 
+    def extract_icons_from_html(self) -> tuple[str | None, str | None]:
+        """
+        Extract favicon and logo URLs from HTML homepage.
+
+        These are not available in JSON APIs and must be scraped from HTML.
+
+        Returns:
+            Tuple of (favicon_url, logo_url). Either can be None.
+        """
+        try:
+            html_content = self.client.get("/")
+            if not html_content:
+                return None, None
+
+            soup = BeautifulSoup(html_content, "html.parser")
+
+            # Favicon: <link rel="icon" href="...">
+            favicon_url = None
+            icon_link = soup.find("link", {"rel": "icon"})
+            if icon_link and icon_link.get("href"):  # type: ignore[union-attr]
+                favicon_url = icon_link["href"]  # type: ignore[index]
+
+            # Logo: header img.logo, then apple-touch-icon as fallback
+            logo_url = None
+            header = soup.find("header")
+            if header:
+                logo_img = header.find("img", class_="logo")  # type: ignore[call-arg]
+                if logo_img and logo_img.get("src"):  # type: ignore[union-attr]
+                    logo_url = logo_img["src"]  # type: ignore[index]
+
+            if not logo_url:
+                apple_icon = soup.find("link", {"rel": "apple-touch-icon"})
+                if apple_icon and apple_icon.get("href"):  # type: ignore[union-attr]
+                    logo_url = apple_icon["href"]  # type: ignore[index]
+
+            return str(favicon_url) if favicon_url else None, str(
+                logo_url
+            ) if logo_url else None
+
+        except Exception as e:
+            log.warning(f"Error extracting icons from HTML: {e}")
+            return None, None
+
     def extract_logo_from_html(self) -> str | None:
         """
         Extract site logo URL from HTML homepage.
 
         Logos are not available in JSON APIs and must be scraped from HTML.
-        Looks for <link rel="icon"> tags and logo images in header.
 
         Returns:
             Logo URL or None if not found
         """
-        try:
-            # Fetch HTML homepage
-            html_content = self.client.get("/")
-
-            if not html_content:
-                return None
-
-            soup = BeautifulSoup(html_content, "html.parser")
-
-            # Try multiple strategies to find logo
-
-            # 1. Look for <link rel="icon" href="...">
-            icon_link = soup.find("link", {"rel": "icon"})
-            if icon_link and icon_link.get("href"):  # type: ignore[union-attr]
-                return icon_link["href"]  # type: ignore[index, return-value]
-
-            # 2. Look for apple-touch-icon (often higher quality)
-            apple_icon = soup.find("link", {"rel": "apple-touch-icon"})
-            if apple_icon and apple_icon.get("href"):  # type: ignore[union-attr]
-                return apple_icon["href"]  # type: ignore[index, return-value]
-
-            # 3. Look for logo in header
-            header = soup.find("header")
-            if header:
-                logo_img = header.find("img", class_="logo")  # type: ignore[call-arg]
-                if logo_img and logo_img.get("src"):  # type: ignore[union-attr]
-                    return logo_img["src"]  # type: ignore[index, return-value]
-
-            return None
-
-        except Exception as e:
-            log.warning(f"Error extracting logo from HTML: {e}")
-            return None
+        favicon_url, logo_url = self.extract_icons_from_html()
+        # Backward compat: return logo if found, else favicon
+        return logo_url or favicon_url
 
     def fetch_and_store_site_metadata(self) -> None:
         """
@@ -149,8 +161,11 @@ class SiteConfigFetcher:
             log.info(f"Got {len(top_tags)} top tags")
             self.db.store_top_tags(top_tags)
 
-        # Extract logo from HTML
-        logo_url = self.extract_logo_from_html()
+        # Extract favicon and logo from HTML
+        favicon_url, logo_url = self.extract_icons_from_html()
+        if favicon_url:
+            log.info(f"Found favicon: {favicon_url}")
+            self.db.update_site_metadata(site_url, favicon_url=favicon_url)
         if logo_url:
             log.info(f"Found logo: {logo_url}")
             self.db.update_site_metadata(site_url, logo_url=logo_url)

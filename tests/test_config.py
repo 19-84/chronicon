@@ -15,7 +15,7 @@ def test_config_defaults():
     assert config.retry_max == 5
     assert config.timeout == 15
     assert config.exponential_backoff_base == 2
-    assert not config.include_users
+    assert config.include_users
     assert not config.text_only
 
 
@@ -86,7 +86,7 @@ rate_limit_seconds = 2.0
     # Check that other values remain defaults
     assert config.max_workers == 8
     assert config.default_formats == ["html", "md"]
-    assert not config.include_users
+    assert config.include_users
 
 
 def test_config_load_malformed_toml(tmp_path):

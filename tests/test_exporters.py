@@ -122,8 +122,8 @@ def test_html_export_creates_topic_pages(tmp_path, sample_db):
     exporter = HTMLStaticExporter(sample_db, output_dir)
     exporter.generate_topics()
 
-    # Check Discourse-compatible path structure: /t/{slug}/{id}.html
-    topic_path = output_dir / "t" / "test-topic" / "1.html"
+    # Check Discourse-compatible path structure: /t/{slug}/{id}/index.html
+    topic_path = output_dir / "t" / "test-topic" / "1" / "index.html"
     assert topic_path.exists()
 
     content = topic_path.read_text()
@@ -158,15 +158,15 @@ def test_html_export_creates_search_index(tmp_path, sample_db):
 
         # Verify URL structure matches expected format
         if item["type"] == "topic":
-            # Topics should be: t/{slug}/{id}.html
+            # Topics should be: t/{slug}/{id}/
             assert item["url"].startswith("t/"), (
                 f"Topic URL should start with 't/': {item['url']}"
             )
-            assert item["url"].endswith(".html"), (
-                f"Topic URL should end with '.html': {item['url']}"
+            assert item["url"].endswith("/"), (
+                f"Topic URL should end with '/': {item['url']}"
             )
         elif item["type"] == "post":
-            # Posts should be: t/{slug}/{id}.html#post-{id}
+            # Posts should be: t/{slug}/{id}/#post-{id}
             assert item["url"].startswith("t/"), (
                 f"Post URL should start with 't/': {item['url']}"
             )
@@ -200,9 +200,117 @@ def test_html_export_full_pipeline(tmp_path, sample_db):
     assert (output_dir / "search.html").exists()
     # Check Discourse-compatible paths
     assert (output_dir / "c" / "general" / "1" / "index.html").exists()
-    assert (output_dir / "t" / "test-topic" / "1.html").exists()
+    assert (output_dir / "t" / "test-topic" / "1" / "index.html").exists()
     assert (output_dir / "search_index.json").exists()
     assert (output_dir / "assets" / "css" / "archive.css").exists()
+    # robots.txt always generated
+    assert (output_dir / "robots.txt").exists()
+
+
+def test_html_export_generates_sitemap_with_canonical_url(tmp_path, sample_db):
+    """Test sitemap.xml is generated when canonical_base_url is configured."""
+    output_dir = tmp_path / "html_output"
+    config = {"export": {"canonical_base_url": "https://example.com/archive"}}
+    exporter = HTMLStaticExporter(
+        sample_db, output_dir, config=config, search_backend="static"
+    )
+    exporter.export()
+
+    sitemap_path = output_dir / "sitemap.xml"
+    assert sitemap_path.exists()
+
+    content = sitemap_path.read_text()
+    assert '<?xml version="1.0" encoding="UTF-8"?>' in content
+    assert "<urlset" in content
+    # Homepage
+    assert "<loc>https://example.com/archive/</loc>" in content
+    # Topic page
+    assert "<loc>https://example.com/archive/t/test-topic/1</loc>" in content
+    # Category page
+    assert "<loc>https://example.com/archive/c/general/1/index.html</loc>" in content
+    # Latest index
+    assert "<loc>https://example.com/archive/latest/index.html</loc>" in content
+    # Search page (static mode)
+    assert "<loc>https://example.com/archive/search.html</loc>" in content
+
+
+def test_html_export_skips_sitemap_without_canonical_url(tmp_path, sample_db):
+    """Test sitemap.xml is NOT generated without canonical_base_url."""
+    output_dir = tmp_path / "html_output"
+    exporter = HTMLStaticExporter(sample_db, output_dir)
+    exporter.export()
+
+    assert not (output_dir / "sitemap.xml").exists()
+
+
+def test_html_export_generates_robots_txt(tmp_path, sample_db):
+    """Test robots.txt is always generated."""
+    output_dir = tmp_path / "html_output"
+    exporter = HTMLStaticExporter(sample_db, output_dir)
+    exporter.export()
+
+    robots_path = output_dir / "robots.txt"
+    assert robots_path.exists()
+
+    content = robots_path.read_text()
+    assert "User-agent: *" in content
+    assert "Allow: /" in content
+    assert "Disallow: /archive.db" in content
+    assert "Disallow: /search_index.json" in content
+    # No sitemap directive without canonical URL
+    assert "Sitemap:" not in content
+
+
+def test_html_export_robots_txt_includes_sitemap_url(tmp_path, sample_db):
+    """Test robots.txt includes Sitemap directive when canonical_base_url is set."""
+    output_dir = tmp_path / "html_output"
+    config = {"export": {"canonical_base_url": "https://example.com/archive"}}
+    exporter = HTMLStaticExporter(sample_db, output_dir, config=config)
+    exporter.export()
+
+    content = (output_dir / "robots.txt").read_text()
+    assert "Sitemap: https://example.com/archive/sitemap.xml" in content
+
+
+def test_html_export_sitemap_topic_lastmod(tmp_path, sample_db):
+    """Test sitemap includes correct lastmod dates for topics."""
+    output_dir = tmp_path / "html_output"
+    config = {"export": {"canonical_base_url": "https://example.com"}}
+
+    # Add a topic with last_posted_at
+    topic = Topic(
+        id=99,
+        title="Recent Topic",
+        slug="recent-topic",
+        category_id=1,
+        user_id=1,
+        created_at=datetime(2025, 6, 15, 10, 0, 0),
+        updated_at=datetime(2025, 6, 15, 10, 0, 0),
+        last_posted_at=datetime(2025, 7, 20, 14, 30, 0),
+        posts_count=1,
+        views=5,
+    )
+    sample_db.insert_topic(topic)
+
+    post = Post(
+        id=99,
+        topic_id=99,
+        user_id=1,
+        post_number=1,
+        created_at=datetime(2025, 6, 15, 10, 0, 0),
+        updated_at=datetime(2025, 6, 15, 10, 0, 0),
+        cooked="<p>Content</p>",
+        raw="Content",
+        username="testuser",
+    )
+    sample_db.insert_post(post)
+
+    exporter = HTMLStaticExporter(sample_db, output_dir, config=config)
+    exporter.export()
+
+    content = (output_dir / "sitemap.xml").read_text()
+    # last_posted_at should be used as lastmod
+    assert "<lastmod>2025-07-20</lastmod>" in content
 
 
 def test_html_export_fts_mode_skips_search_files(tmp_path, sample_db):
@@ -215,7 +323,7 @@ def test_html_export_fts_mode_skips_search_files(tmp_path, sample_db):
     # Check core files exist
     assert (output_dir / "index.html").exists()
     assert (output_dir / "c" / "general" / "1" / "index.html").exists()
-    assert (output_dir / "t" / "test-topic" / "1.html").exists()
+    assert (output_dir / "t" / "test-topic" / "1" / "index.html").exists()
 
     # Check that static search files are NOT generated in FTS mode
     assert not (output_dir / "search.html").exists()
@@ -232,7 +340,7 @@ def test_html_export_with_users(tmp_path, sample_db):
     exporter = HTMLStaticExporter(sample_db, output_dir, include_users=True)
     exporter.generate_users()
 
-    user_path = output_dir / "users" / "testuser.html"
+    user_path = output_dir / "u" / "testuser" / "index.html"
     assert user_path.exists()
 
     content = user_path.read_text()
@@ -245,8 +353,8 @@ def test_html_export_renders_avatars_in_posts(tmp_path, sample_db):
     exporter = HTMLStaticExporter(sample_db, output_dir)
     exporter.generate_topics()
 
-    # Check Discourse-compatible path structure: /t/{slug}/{id}.html
-    topic_path = output_dir / "t" / "test-topic" / "1.html"
+    # Check Discourse-compatible path structure: /t/{slug}/{id}/index.html
+    topic_path = output_dir / "t" / "test-topic" / "1" / "index.html"
     assert topic_path.exists()
 
     content = topic_path.read_text()
@@ -263,7 +371,7 @@ def test_html_export_renders_avatar_placeholder(tmp_path, sample_db):
     exporter = HTMLStaticExporter(sample_db, output_dir)
     exporter.generate_topics()
 
-    topic_path = output_dir / "t" / "test-topic" / "1.html"
+    topic_path = output_dir / "t" / "test-topic" / "1" / "index.html"
     content = topic_path.read_text()
 
     # Should have avatar placeholder with first letter of username
@@ -293,7 +401,7 @@ def test_html_export_handles_null_user_id(tmp_path, sample_db):
     exporter = HTMLStaticExporter(sample_db, output_dir)
     exporter.generate_topics()
 
-    topic_path = output_dir / "t" / "test-topic" / "1.html"
+    topic_path = output_dir / "t" / "test-topic" / "1" / "index.html"
     content = topic_path.read_text()
 
     # Should have question mark for system posts
@@ -715,13 +823,13 @@ def test_html_export_users_by_username(tmp_path, multi_user_db):
     exporter.generate_users()
 
     # Verify all three user pages exist
-    assert (output_dir / "users" / "alice.html").exists()
-    assert (output_dir / "users" / "bob.html").exists()
-    assert (output_dir / "users" / "charlie.html").exists()
+    assert (output_dir / "u" / "alice" / "index.html").exists()
+    assert (output_dir / "u" / "bob" / "index.html").exists()
+    assert (output_dir / "u" / "charlie" / "index.html").exists()
 
     # Record modification times
-    alice_mtime = (output_dir / "users" / "alice.html").stat().st_mtime
-    charlie_mtime = (output_dir / "users" / "charlie.html").stat().st_mtime
+    alice_mtime = (output_dir / "u" / "alice" / "index.html").stat().st_mtime
+    charlie_mtime = (output_dir / "u" / "charlie" / "index.html").stat().st_mtime
 
     import time
 
@@ -731,11 +839,11 @@ def test_html_export_users_by_username(tmp_path, multi_user_db):
     exporter.export_users_by_username({"bob"})
 
     # Bob's page should be regenerated (newer mtime)
-    bob_new_mtime = (output_dir / "users" / "bob.html").stat().st_mtime
+    bob_new_mtime = (output_dir / "u" / "bob" / "index.html").stat().st_mtime
 
     # Alice and Charlie should NOT be regenerated
-    alice_new_mtime = (output_dir / "users" / "alice.html").stat().st_mtime
-    charlie_new_mtime = (output_dir / "users" / "charlie.html").stat().st_mtime
+    alice_new_mtime = (output_dir / "u" / "alice" / "index.html").stat().st_mtime
+    charlie_new_mtime = (output_dir / "u" / "charlie" / "index.html").stat().st_mtime
 
     assert bob_new_mtime > alice_mtime  # Bob was regenerated
     assert alice_new_mtime == alice_mtime  # Alice was NOT regenerated
@@ -750,8 +858,8 @@ def test_html_export_users_by_username_skips_when_not_included(tmp_path, multi_u
     # Should not create any user files
     exporter.export_users_by_username({"alice", "bob"})
 
-    users_dir = output_dir / "users"
-    assert not users_dir.exists() or not list(users_dir.glob("*.html"))
+    users_dir = output_dir / "u"
+    assert not users_dir.exists() or not list(users_dir.glob("*/index.html"))
 
 
 def test_html_export_users_by_username_regenerates_index(tmp_path, multi_user_db):
@@ -763,7 +871,7 @@ def test_html_export_users_by_username_regenerates_index(tmp_path, multi_user_db
     exporter.generate_users_index()
     exporter.generate_users()
 
-    index_mtime = (output_dir / "users" / "index.html").stat().st_mtime
+    index_mtime = (output_dir / "u" / "index.html").stat().st_mtime
 
     import time
 
@@ -773,7 +881,7 @@ def test_html_export_users_by_username_regenerates_index(tmp_path, multi_user_db
     exporter.export_users_by_username({"alice"})
 
     # Users index should be regenerated (post counts may have changed)
-    index_new_mtime = (output_dir / "users" / "index.html").stat().st_mtime
+    index_new_mtime = (output_dir / "u" / "index.html").stat().st_mtime
     assert index_new_mtime > index_mtime
 
 
@@ -864,3 +972,186 @@ def test_hybrid_export_users_by_username(tmp_path, multi_user_db):
 
         mock_html.assert_called_once_with({"alice", "bob"})
         mock_md.assert_called_once_with({"alice", "bob"})
+
+
+def test_hybrid_export_generates_nojekyll(tmp_path, sample_db):
+    """Test HybridExporter generates .nojekyll file."""
+    from chronicon.exporters.hybrid import HybridExporter
+
+    output_dir = tmp_path / "hybrid_output"
+    exporter = HybridExporter(sample_db, output_dir)
+    exporter.export()
+
+    nojekyll_path = output_dir / ".nojekyll"
+    assert nojekyll_path.exists()
+    assert (output_dir / "_config.yml").exists()
+
+
+def test_html_export_copies_fonts(tmp_path, sample_db):
+    """Test that HTML export copies font files to output."""
+    output_dir = tmp_path / "html_output"
+    exporter = HTMLStaticExporter(sample_db, output_dir)
+    exporter.copy_assets()
+
+    fonts_dir = output_dir / "assets" / "fonts"
+    assert fonts_dir.exists()
+    # Check that InterVariable fonts are copied
+    assert (fonts_dir / "InterVariable.woff2").exists()
+    assert (fonts_dir / "InterVariable-Italic.woff2").exists()
+
+
+def test_html_export_copies_favicon_to_root(tmp_path, sample_db):
+    """Test that favicon.ico is copied to output root for browser auto-discovery."""
+    output_dir = tmp_path / "html_output"
+
+    # Create fake favicon in assets/site/
+    site_dir = output_dir / "assets" / "site"
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / "favicon.ico").write_bytes(b"\x00\x00\x01\x00")
+
+    exporter = HTMLStaticExporter(sample_db, output_dir)
+    exporter.copy_assets()
+
+    assert (output_dir / "favicon.ico").exists()
+
+
+def test_html_export_favicon_link_in_html(tmp_path, sample_db):
+    """Test that generated HTML includes favicon link tag."""
+    output_dir = tmp_path / "html_output"
+    exporter = HTMLStaticExporter(sample_db, output_dir)
+    exporter.generate_index()
+
+    content = (output_dir / "index.html").read_text()
+    assert 'rel="icon"' in content
+    assert "favicon.ico" in content
+
+
+def test_html_export_og_image_absolute_url(tmp_path):
+    """Test that OG image uses absolute URL when canonical_base_url is set."""
+    db_path = tmp_path / "og_test.db"
+    db = ArchiveDatabase(db_path)
+
+    category = Category(
+        id=1,
+        name="General",
+        slug="general",
+        color="FF0000",
+        text_color="FFFFFF",
+        description="General",
+        parent_category_id=None,
+        topic_count=1,
+    )
+    db.insert_category(category)
+
+    topic = Topic(
+        id=1,
+        title="Test Topic",
+        slug="test-topic",
+        category_id=1,
+        user_id=1,
+        created_at=datetime(2024, 1, 1),
+        updated_at=datetime(2024, 1, 1),
+        posts_count=1,
+        views=10,
+        image_url="https://cdn.example.com/screenshot.png",
+    )
+    db.insert_topic(topic)
+
+    output_dir = tmp_path / "html_output"
+    img_dir = output_dir / "assets" / "images" / "1"
+    img_dir.mkdir(parents=True, exist_ok=True)
+    (img_dir / "screenshot.png").write_bytes(b"fake")
+
+    db.register_asset(
+        "https://cdn.example.com/screenshot.png",
+        str(img_dir / "screenshot.png"),
+        "image/png",
+    )
+
+    config = {"export": {"canonical_base_url": "https://example.com/archive"}}
+    exporter = HTMLStaticExporter(db, output_dir, config=config)
+
+    seo_ctx = exporter._generate_topic_seo_context(topic, [], None)
+    og_image = seo_ctx["og_tags"].get("og:image", "")
+    # Must be absolute URL, not relative
+    assert og_image.startswith("https://example.com/archive/")
+    assert "assets/" in og_image
+
+
+def test_html_export_og_image_fallback_without_canonical(tmp_path):
+    """Test that OG image falls back to remote URL without canonical_base_url."""
+    db_path = tmp_path / "og_test2.db"
+    db = ArchiveDatabase(db_path)
+
+    category = Category(
+        id=1,
+        name="General",
+        slug="general",
+        color="FF0000",
+        text_color="FFFFFF",
+        description="General",
+        parent_category_id=None,
+        topic_count=1,
+    )
+    db.insert_category(category)
+
+    topic = Topic(
+        id=1,
+        title="Test Topic",
+        slug="test-topic",
+        category_id=1,
+        user_id=1,
+        created_at=datetime(2024, 1, 1),
+        updated_at=datetime(2024, 1, 1),
+        posts_count=1,
+        views=10,
+        image_url="https://cdn.example.com/screenshot.png",
+    )
+    db.insert_topic(topic)
+
+    output_dir = tmp_path / "html_output"
+    exporter = HTMLStaticExporter(db, output_dir)
+    seo_ctx = exporter._generate_topic_seo_context(topic, [], None)
+
+    og_image = seo_ctx["og_tags"].get("og:image", "")
+    # Without canonical URL, should fall back to remote URL (not relative)
+    if og_image:
+        assert not og_image.startswith("../")
+
+
+def test_html_export_homepage_json_ld(tmp_path, sample_db):
+    """Test that homepage includes JSON-LD structured data."""
+    import json
+
+    output_dir = tmp_path / "html_output"
+    config = {"export": {"canonical_base_url": "https://example.com/archive"}}
+    exporter = HTMLStaticExporter(sample_db, output_dir, config=config)
+    exporter.generate_index()
+
+    content = (output_dir / "index.html").read_text()
+    assert "application/ld+json" in content
+
+    # Extract and validate JSON-LD
+    import re
+
+    match = re.search(
+        r'<script type="application/ld\+json">\s*(.*?)\s*</script>',
+        content,
+        re.DOTALL,
+    )
+    assert match, "JSON-LD script tag not found"
+    json_ld = json.loads(match.group(1))
+    assert json_ld["@type"] == "WebSite"
+    assert json_ld["url"] == "https://example.com/archive"
+    assert "potentialAction" in json_ld
+
+
+def test_html_export_homepage_no_json_ld_without_canonical(tmp_path, sample_db):
+    """Test homepage JSON-LD still generates without canonical URL."""
+    output_dir = tmp_path / "html_output"
+    exporter = HTMLStaticExporter(sample_db, output_dir)
+    exporter.generate_index()
+
+    content = (output_dir / "index.html").read_text()
+    # JSON-LD should still exist (WebSite type)
+    assert "application/ld+json" in content

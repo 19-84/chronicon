@@ -221,10 +221,10 @@ def test_incremental_export_regenerates_only_affected_topics(test_db, tmp_path):
     # Regenerate only topic 100
     html_exporter.export_topics([100])
 
-    # Verify topic 100 was exported (HTML uses /t/{slug}/{id}.html structure)
-    topic_100_path = html_dir / "t" / "existing-topic" / "100.html"
+    # Verify topic 100 was exported (HTML uses /t/{slug}/{id}/index.html structure)
+    topic_100_path = html_dir / "t" / "existing-topic" / "100" / "index.html"
     assert topic_100_path.exists(), (
-        "Topic 100 should be exported to /t/existing-topic/100.html"
+        "Topic 100 should be exported to /t/existing-topic/100/index.html"
     )
 
     # Topic 300 should not be in the regeneration (though it might exist from earlier)

@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS site_metadata (
     contact_email TEXT,
     discourse_version TEXT,
     logo_url TEXT,
+    favicon_url TEXT,
     category_filter TEXT
 );
 """

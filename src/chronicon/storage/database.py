@@ -38,7 +38,7 @@ class ArchiveDatabase(ArchiveDatabaseBase):
 
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(str(self.db_path))
+        self.connection = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._create_schema()
         self._run_migrations()
@@ -80,6 +80,10 @@ class ArchiveDatabase(ArchiveDatabaseBase):
             cursor.execute(
                 "ALTER TABLE site_metadata ADD COLUMN discourse_version TEXT"
             )
+            needs_commit = True
+
+        if "favicon_url" not in columns:
+            cursor.execute("ALTER TABLE site_metadata ADD COLUMN favicon_url TEXT")
             needs_commit = True
 
         # Check and add missing users table columns

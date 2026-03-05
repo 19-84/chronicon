@@ -14,6 +14,7 @@ from ..utils.logger import get_logger
 from ..utils.search_indexer import SearchIndexer
 from ..utils.seo import (
     generate_category_og_tags,
+    generate_homepage_json_ld,
     generate_homepage_og_tags,
     generate_json_ld,
     generate_keywords,
@@ -354,33 +355,31 @@ class HTMLStaticExporter(BaseExporter):
 
         site_title = site_meta.get("site_title", "Forum Archive")
 
-        # Generate canonical URL if configured
+        # Generate canonical URL if configured (Discourse-compatible, no .html)
         canonical_url = None
         if self.canonical_base_url:
-            canonical_url = f"{self.canonical_base_url}/t/{topic.slug}/{topic.id}.html"
+            canonical_url = f"{self.canonical_base_url}/t/{topic.slug}/{topic.id}"
 
         # Get author name from first post
         author_name = posts[0].username if posts else "Unknown"
 
         # Get local path for topic SEO image if it was downloaded
+        # OG/Twitter/JSON-LD require absolute URLs for social crawlers
         local_image_path = None
         if topic.image_url:
             local_path_abs = self.db.get_asset_path(topic.image_url)
-            if local_path_abs:
-                # Convert absolute local path to relative path for HTML
+            if local_path_abs and self.canonical_base_url:
                 from pathlib import Path
 
                 local_path_obj = Path(local_path_abs)
                 try:
-                    # Find 'assets' in the path
                     parts = local_path_obj.parts
                     assets_idx = parts.index("assets")
                     rel_parts = parts[assets_idx:]
-                    # For topic pages, depth is 3: /t/{slug}/{id}.html
-                    # So we need ../../../assets/...
-                    local_image_path = "../../../" + "/".join(rel_parts)
+                    local_image_path = (
+                        f"{self.canonical_base_url}/{'/'.join(rel_parts)}"
+                    )
                 except (ValueError, IndexError):
-                    # Fallback to None if path parsing fails
                     local_image_path = None
 
         # Generate SEO metadata with local image path
@@ -432,7 +431,7 @@ class HTMLStaticExporter(BaseExporter):
         canonical_url = seo_context.get("canonical_url")
         if canonical_url and page_num > 1:
             # Update canonical URL for paginated pages
-            canonical_url = canonical_url.replace(".html", f"-page-{page_num}.html")
+            canonical_url = f"{canonical_url}/page-{page_num}"
 
         # Create pagination context
         pagination = {
@@ -459,22 +458,19 @@ class HTMLStaticExporter(BaseExporter):
             posts=posts,
             category=category,
             pagination=pagination,
-            depth=2,  # /t/{slug}/{id}.html - 2 levels deep
+            depth=3,  # /t/{slug}/{id}/index.html - 3 levels deep
             source_url=source_url,  # For linking to original Discourse posts
             **page_seo_context,  # Include SEO metadata
         )
 
-        # Determine file path using Discourse-compatible structure: /t/{slug}/{id}.html
-        topic_dir = self.output_dir / "t" / topic.slug
-        topic_dir.mkdir(parents=True, exist_ok=True)
+        # Determine file path: /t/{slug}/{id}/index.html (Discourse-compatible)
+        topic_id_dir = self.output_dir / "t" / topic.slug / str(topic.id)
+        topic_id_dir.mkdir(parents=True, exist_ok=True)
 
         if page_num == 1:
-            # First page uses standard naming: /t/{slug}/{id}.html
-            topic_path = topic_dir / f"{topic.id}.html"
+            topic_path = topic_id_dir / "index.html"
         else:
-            # Subsequent pages have page number suffix:
-            # /t/{slug}/{id}-page-{page_num}.html
-            topic_path = topic_dir / f"{topic.id}-page-{page_num}.html"
+            topic_path = topic_id_dir / f"page-{page_num}.html"
 
         # Write to file
         topic_path.write_text(html, encoding="utf-8")
@@ -540,6 +536,11 @@ class HTMLStaticExporter(BaseExporter):
 
         # Copy static assets
         self.copy_assets()
+
+        # Generate sitemap.xml and robots.txt
+        self.generate_sitemap()
+        self.generate_robots_txt()
+
         if self.progress:
             self.progress.advance(main_task, 1)
             self.progress.update(main_task, description="[green]✓ HTML export complete")
@@ -598,6 +599,20 @@ class HTMLStaticExporter(BaseExporter):
         logo_url = site_meta.get("logo_url")
         source_url = site_meta.get("site_url", site_url or "")
 
+        # Resolve logo to absolute URL for OG tags if canonical URL is set
+        og_logo_url = logo_url
+        if logo_url and self.canonical_base_url:
+            local_logo_path = self.db.get_asset_path(logo_url)
+            if local_logo_path:
+                local_path_obj = Path(local_logo_path)
+                try:
+                    parts = local_path_obj.parts
+                    assets_idx = parts.index("assets")
+                    rel_parts = parts[assets_idx:]
+                    og_logo_url = f"{self.canonical_base_url}/{'/'.join(rel_parts)}"
+                except (ValueError, IndexError):
+                    pass  # Keep original logo_url
+
         # Prepare date range
         date_range = None
         if archive_stats.get("earliest_topic") and archive_stats.get("latest_topic"):
@@ -616,7 +631,12 @@ class HTMLStaticExporter(BaseExporter):
 
         # Generate homepage Open Graph tags
         og_tags = generate_homepage_og_tags(
-            site_title, site_description, logo_url, canonical_url
+            site_title, site_description, og_logo_url, canonical_url
+        )
+
+        # Generate homepage JSON-LD
+        json_ld = generate_homepage_json_ld(
+            site_title, site_description, canonical_url, og_logo_url
         )
 
         # Render template
@@ -641,6 +661,7 @@ class HTMLStaticExporter(BaseExporter):
             }
             if site_description
             else {},
+            json_ld=json_ld,
             canonical_url=canonical_url,
             archiver_version=self._get_version(),
             discourse_version=site_meta.get("discourse_version"),
@@ -1010,7 +1031,7 @@ class HTMLStaticExporter(BaseExporter):
                         if post.cooked:
                             post.cooked = (
                                 self.html_processor.rewrite_with_full_resolution_links(
-                                    post.cooked, topic.id, self.db, page_depth=2
+                                    post.cooked, topic.id, self.db, page_depth=3
                                 )
                             )
                             # Enhance emoji with Unicode fallbacks
@@ -1063,7 +1084,7 @@ class HTMLStaticExporter(BaseExporter):
                     if post.cooked:
                         post.cooked = (
                             self.html_processor.rewrite_with_full_resolution_links(
-                                post.cooked, topic.id, self.db, page_depth=2
+                                post.cooked, topic.id, self.db, page_depth=3
                             )
                         )
                         # Enhance emoji with Unicode fallbacks
@@ -1101,7 +1122,7 @@ class HTMLStaticExporter(BaseExporter):
         users = self.db.get_all_users()
         template = self.env.get_template("user.html")
 
-        user_dir = self.output_dir / "users"
+        user_dir = self.output_dir / "u"
         user_dir.mkdir(parents=True, exist_ok=True)
         total_pages_generated = 0
 
@@ -1169,17 +1190,16 @@ class HTMLStaticExporter(BaseExporter):
                         post_count=post_count,
                         pagination=pagination,
                         meta_description=page_meta_description,
-                        depth=1,  # users/{username}.html
+                        depth=2,  # /u/{username}/index.html
                     )
 
-                    # Determine file path
+                    # Determine file path: /u/{username}/index.html
+                    user_subdir = user_dir / user.username
+                    user_subdir.mkdir(parents=True, exist_ok=True)
                     if page_num == 1:
-                        # First page uses standard naming: /users/{username}.html
-                        user_path = user_dir / f"{user.username}.html"
+                        user_path = user_subdir / "index.html"
                     else:
-                        # Subsequent pages have page number suffix:
-                        # /users/{username}-page-{page_num}.html
-                        user_path = user_dir / f"{user.username}-page-{page_num}.html"
+                        user_path = user_subdir / f"page-{page_num}.html"
 
                     # Write file
                     user_path.write_text(html, encoding="utf-8")
@@ -1196,11 +1216,13 @@ class HTMLStaticExporter(BaseExporter):
                     post_count=post_count,
                     pagination=None,
                     meta_description=meta_description,
-                    depth=1,  # users/{username}.html
+                    depth=2,  # /u/{username}/index.html
                 )
 
-                # Write file
-                user_path = user_dir / f"{user.username}.html"
+                # Write file: /u/{username}/index.html
+                user_subdir = user_dir / user.username
+                user_subdir.mkdir(parents=True, exist_ok=True)
+                user_path = user_subdir / "index.html"
                 user_path.write_text(html, encoding="utf-8")
                 total_pages_generated += 1
 
@@ -1216,8 +1238,8 @@ class HTMLStaticExporter(BaseExporter):
 
         template = self.env.get_template("user_index.html")
 
-        # Create /users/ directory
-        users_dir = self.output_dir / "users"
+        # Create /u/ directory
+        users_dir = self.output_dir / "u"
         users_dir.mkdir(parents=True, exist_ok=True)
 
         for page_num in range(1, total_pages + 1):
@@ -1244,8 +1266,8 @@ class HTMLStaticExporter(BaseExporter):
             html = template.render(
                 users=users,
                 pagination=pagination,
-                base_path="users",
-                depth=1,  # /users/index.html
+                base_path="u",
+                depth=1,  # /u/index.html
             )
 
             # Write page file
@@ -1289,6 +1311,17 @@ class HTMLStaticExporter(BaseExporter):
                 if not dest_file.exists() or css_file.name == "archive.css":
                     shutil.copy(css_file, dest_file)
 
+        # Copy font files
+        source_fonts = static_dir / "fonts"
+        if source_fonts.exists():
+            fonts_dir = assets_dir / "fonts"
+            fonts_dir.mkdir(parents=True, exist_ok=True)
+            for font_file in source_fonts.glob("*"):
+                if font_file.is_file():
+                    dest_file = fonts_dir / font_file.name
+                    if not dest_file.exists():
+                        shutil.copy(font_file, dest_file)
+
         # Copy JS files (only for static search mode)
         if self.search_backend == "static":
             source_js = static_dir / "js"
@@ -1298,6 +1331,27 @@ class HTMLStaticExporter(BaseExporter):
                     dest_file = js_dir / js_file.name
                     if not dest_file.exists():
                         shutil.copy(js_file, dest_file)
+
+        # Copy favicon from its CDN filename to favicon.ico for template compatibility
+        site_favicon_dir = assets_dir / "site"
+        site_favicon = site_favicon_dir / "favicon.ico"
+        if not site_favicon.exists():
+            # Favicon was downloaded under its CDN filename — find and copy it
+            site_url = self.db.get_first_site_url()
+            if site_url:
+                site_metadata = self.db.get_site_metadata(site_url)
+                favicon_url = site_metadata.get("favicon_url")
+                if favicon_url:
+                    favicon_local = self.db.get_asset_path(favicon_url)
+                    if favicon_local and Path(favicon_local).exists():
+                        site_favicon_dir.mkdir(parents=True, exist_ok=True)
+                        shutil.copy(Path(favicon_local), site_favicon)
+
+        # Copy favicon to root for browser auto-discovery (/favicon.ico)
+        if site_favicon.exists():
+            root_favicon = self.output_dir / "favicon.ico"
+            if not root_favicon.exists():
+                shutil.copy(site_favicon, root_favicon)
 
         # Note: Downloaded assets (images, avatars, emoji, site) are already
         # in output_dir/assets/ from the AssetDownloader in CLI.
@@ -1347,7 +1401,7 @@ class HTMLStaticExporter(BaseExporter):
                         if post.cooked:
                             post.cooked = (
                                 self.html_processor.rewrite_with_full_resolution_links(
-                                    post.cooked, topic.id, self.db, page_depth=2
+                                    post.cooked, topic.id, self.db, page_depth=3
                                 )
                             )
                             # Enhance emoji with Unicode fallbacks
@@ -1402,7 +1456,7 @@ class HTMLStaticExporter(BaseExporter):
                     if post.cooked:
                         post.cooked = (
                             self.html_processor.rewrite_with_full_resolution_links(
-                                post.cooked, topic.id, self.db, page_depth=2
+                                post.cooked, topic.id, self.db, page_depth=3
                             )
                         )
                         # Enhance emoji with Unicode fallbacks
@@ -1586,7 +1640,7 @@ class HTMLStaticExporter(BaseExporter):
 
         template = self.env.get_template("user.html")
 
-        user_dir = self.output_dir / "users"
+        user_dir = self.output_dir / "u"
         user_dir.mkdir(parents=True, exist_ok=True)
 
         # Get site title for meta descriptions
@@ -1652,13 +1706,15 @@ class HTMLStaticExporter(BaseExporter):
                         post_count=post_count,
                         pagination=pagination,
                         meta_description=page_meta_description,
-                        depth=1,
+                        depth=2,  # /u/{username}/index.html
                     )
 
+                    user_subdir = user_dir / user.username
+                    user_subdir.mkdir(parents=True, exist_ok=True)
                     if page_num == 1:
-                        user_path = user_dir / f"{user.username}.html"
+                        user_path = user_subdir / "index.html"
                     else:
-                        user_path = user_dir / f"{user.username}-page-{page_num}.html"
+                        user_path = user_subdir / f"page-{page_num}.html"
 
                     user_path.write_text(html, encoding="utf-8")
             else:
@@ -1670,10 +1726,12 @@ class HTMLStaticExporter(BaseExporter):
                     post_count=post_count,
                     pagination=None,
                     meta_description=meta_description,
-                    depth=1,
+                    depth=2,  # /u/{username}/index.html
                 )
 
-                user_path = user_dir / f"{user.username}.html"
+                user_subdir = user_dir / user.username
+                user_subdir.mkdir(parents=True, exist_ok=True)
+                user_path = user_subdir / "index.html"
                 user_path.write_text(html, encoding="utf-8")
 
             regenerated += 1
@@ -1683,6 +1741,123 @@ class HTMLStaticExporter(BaseExporter):
         # Regenerate users index since post counts may have changed
         if regenerated > 0:
             self.generate_users_index()
+
+    def generate_sitemap(self) -> None:
+        """Generate sitemap.xml for search engine discovery.
+
+        Only generates when canonical_base_url is configured, since sitemaps
+        require absolute URLs per the sitemap protocol.
+        """
+        if not self.canonical_base_url:
+            log.debug("Skipping sitemap: no canonical_base_url configured")
+            return
+
+        base = self.canonical_base_url.rstrip("/")
+        urls: list[tuple[str, str | None, str, str]] = []
+
+        # Homepage
+        urls.append((f"{base}/", None, "weekly", "1.0"))
+
+        # Latest index pages
+        total_topics = self.db.get_topics_count()
+        total_latest_pages = (
+            math.ceil(total_topics / TOPICS_PER_INDEX_PAGE) if total_topics > 0 else 1
+        )
+        for p in range(1, total_latest_pages + 1):
+            page_file = "index.html" if p == 1 else f"page-{p}.html"
+            urls.append((f"{base}/latest/{page_file}", None, "daily", "0.7"))
+
+        # Top indexes
+        urls.append((f"{base}/top/index.html", None, "weekly", "0.5"))
+        for sub in ["replies", "views"]:
+            for p in range(1, total_latest_pages + 1):
+                page_file = "index.html" if p == 1 else f"page-{p}.html"
+                urls.append((f"{base}/top/{sub}/{page_file}", None, "weekly", "0.5"))
+
+        # Category pages
+        categories = self.db.get_all_categories()
+        for cat in categories:
+            cat_pages = (
+                math.ceil(cat.topic_count / TOPICS_PER_CATEGORY_PAGE)
+                if cat.topic_count > 0
+                else 1
+            )
+            for p in range(1, cat_pages + 1):
+                page_file = "index.html" if p == 1 else f"page-{p}.html"
+                urls.append(
+                    (
+                        f"{base}/c/{cat.slug}/{cat.id}/{page_file}",
+                        None,
+                        "weekly",
+                        "0.6",
+                    )
+                )
+
+        # Topic pages
+        topics = self.db.get_all_topics()
+        for topic in topics:
+            lastmod = None
+            lastmod_dt = topic.last_posted_at or topic.created_at
+            if lastmod_dt:
+                lastmod = lastmod_dt.strftime("%Y-%m-%d")
+            topic_pages = (
+                math.ceil(topic.posts_count / self.posts_per_page)
+                if topic.posts_count > 0
+                else 1
+            )
+            for p in range(1, topic_pages + 1):
+                if p == 1:
+                    loc = f"{base}/t/{topic.slug}/{topic.id}"
+                else:
+                    loc = f"{base}/t/{topic.slug}/{topic.id}/page-{p}"
+                urls.append((loc, lastmod, "monthly", "0.8"))
+
+        # User pages (if enabled)
+        if self.include_users:
+            users = self.db.get_all_users()
+            for user in users:
+                urls.append((f"{base}/u/{user.username}", None, "monthly", "0.3"))
+
+        # Search page (if static mode)
+        if self.search_backend == "static":
+            urls.append((f"{base}/search.html", None, "monthly", "0.4"))
+
+        # Build XML
+        lines = ['<?xml version="1.0" encoding="UTF-8"?>']
+        lines.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
+        for loc, lastmod, changefreq, priority in urls:
+            lines.append("  <url>")
+            lines.append(f"    <loc>{loc}</loc>")
+            if lastmod:
+                lines.append(f"    <lastmod>{lastmod}</lastmod>")
+            lines.append(f"    <changefreq>{changefreq}</changefreq>")
+            lines.append(f"    <priority>{priority}</priority>")
+            lines.append("  </url>")
+        lines.append("</urlset>")
+
+        sitemap_path = self.output_dir / "sitemap.xml"
+        sitemap_path.write_text("\n".join(lines), encoding="utf-8")
+        log.info(f"Generated sitemap.xml with {len(urls)} URLs")
+
+    def generate_robots_txt(self) -> None:
+        """Generate robots.txt for crawler guidance."""
+        lines = [
+            "User-agent: *",
+            "Allow: /",
+            "",
+            "Disallow: /archive.db",
+            "Disallow: /search_index.json",
+            "",
+        ]
+
+        if self.canonical_base_url:
+            base = self.canonical_base_url.rstrip("/")
+            lines.append(f"Sitemap: {base}/sitemap.xml")
+            lines.append("")
+
+        robots_path = self.output_dir / "robots.txt"
+        robots_path.write_text("\n".join(lines), encoding="utf-8")
+        log.info("Generated robots.txt")
 
     def update_index(self) -> None:
         """
@@ -1698,5 +1873,9 @@ class HTMLStaticExporter(BaseExporter):
         if self.search_backend == "static":
             self.generate_search_page()
             self.generate_search_index()
+
+        # Refresh sitemap and robots.txt
+        self.generate_sitemap()
+        self.generate_robots_txt()
 
         log.info("Index pages updated")

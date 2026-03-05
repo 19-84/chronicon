@@ -51,8 +51,7 @@ class URLRewriter:
         Returns:
             Relative URL to user profile
         """
-        # Placeholder implementation - will be implemented in Phase 2
-        return f"/users/{username}.html"
+        return f"/u/{username}/"
 
     def rewrite_topic_link(self, topic_id: int, slug: str) -> str:
         """
@@ -65,8 +64,7 @@ class URLRewriter:
         Returns:
             Relative URL to topic
         """
-        # Placeholder implementation - will be implemented in Phase 2
-        return f"/topics/{slug}-{topic_id}.html"
+        return f"/t/{slug}/{topic_id}/"
 
     def rewrite_category_link(self, category_id: int, slug: str) -> str:
         """
@@ -79,5 +77,4 @@ class URLRewriter:
         Returns:
             Relative URL to category
         """
-        # Placeholder implementation - will be implemented in Phase 2
-        return f"/categories/{slug}/index.html"
+        return f"/c/{slug}/{category_id}/"

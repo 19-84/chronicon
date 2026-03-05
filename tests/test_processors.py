@@ -927,7 +927,7 @@ class TestURLRewriter:
 
         user_link = rewriter.rewrite_user_link("codinghorror")
 
-        assert user_link == "/users/codinghorror.html"
+        assert user_link == "/u/codinghorror/"
 
     def test_rewrite_topic_link(self):
         """Test rewriting topic link."""
@@ -935,10 +935,10 @@ class TestURLRewriter:
 
         topic_link = rewriter.rewrite_topic_link(123, "how-to-install")
 
-        # Should match PLAN.md structure
+        # Should match Discourse URL structure: /t/{slug}/{id}/
         assert "how-to-install" in topic_link
         assert "123" in topic_link
-        assert ".html" in topic_link
+        assert topic_link.endswith("/")
 
     def test_rewrite_category_link(self):
         """Test rewriting category link."""
@@ -947,8 +947,8 @@ class TestURLRewriter:
         category_link = rewriter.rewrite_category_link(5, "meta")
 
         assert "meta" in category_link
-        assert "categories" in category_link
-        assert "index.html" in category_link
+        assert "/c/" in category_link
+        assert "5" in category_link
 
 
 class TestQueryParamNormalization:
@@ -1280,17 +1280,17 @@ class TestNearestVariantSrcset:
         # No external URLs should remain in srcset
         assert "cdn.example.com" not in result
 
-    def test_no_width_descriptor_entries_kept(self):
-        """Test that entries without width descriptors (e.g., 2x) are not
-        affected by nearest-variant logic."""
+    def test_density_descriptor_resolved_via_nearest(self):
+        """Test that unresolved density descriptors (e.g., 2x) are mapped
+        to the nearest resolved density variant."""
         processor = HTMLProcessor()
 
         asset_map = {
-            "https://cdn.example.com/img.webp": ("archives/assets/images/42/img.webp"),
+            "https://cdn.example.com/img.webp": "archives/assets/images/42/img.webp",
         }
         mock_db = self._make_mock_db([])
 
-        # 2x descriptor, not a width descriptor
+        # 1x resolved, 2x unresolved — should reuse 1x local path
         srcset = (
             "https://cdn.example.com/img.webp 1x, "
             "https://cdn.example.com/img_2x.webp 2x"
@@ -1299,6 +1299,259 @@ class TestNearestVariantSrcset:
         result = processor._rewrite_srcset_value(srcset, asset_map, mock_db, "../../")
 
         # 1x entry should be rewritten (exact match)
-        assert "../../assets/images/42/img.webp" in result
-        # 2x entry should remain external (no width, can't do nearest)
-        assert "https://cdn.example.com/img_2x.webp 2x" in result
+        assert "../../assets/images/42/img.webp 1x" in result
+        # 2x entry should also be rewritten using nearest density variant
+        assert "../../assets/images/42/img.webp 2x" in result
+        # No external URLs should remain
+        assert "cdn.example.com" not in result
+
+    def test_density_1_5x_descriptor_resolved(self):
+        """Test that 1.5x density descriptors are resolved to local paths."""
+        processor = HTMLProcessor()
+
+        asset_map = {
+            "https://cdn.example.com/img.webp": "archives/assets/images/42/img.webp",
+            "https://cdn.example.com/img_1.5x.webp": (
+                "archives/assets/images/42/img_1.5x.webp"
+            ),
+        }
+        mock_db = self._make_mock_db([])
+
+        srcset = (
+            "https://cdn.example.com/img.webp 1x, "
+            "https://cdn.example.com/img_1.5x.webp 1.5x"
+        )
+
+        result = processor._rewrite_srcset_value(srcset, asset_map, mock_db, "../../")
+
+        assert "../../assets/images/42/img.webp 1x" in result
+        assert "../../assets/images/42/img_1.5x.webp 1.5x" in result
+        assert "cdn.example.com" not in result
+
+
+class TestLightboxHrefRewriting:
+    """Tests for lightbox anchor href rewriting."""
+
+    def _make_mock_db(self, topic_assets, global_assets=None):
+        """Create a mock DB with topic-scoped and global asset lookups."""
+        mock_db = Mock()
+        mock_db.get_assets_for_topic.return_value = topic_assets
+        if global_assets is None:
+            global_assets = {}
+        mock_db.get_asset_path.side_effect = lambda url: global_assets.get(url)
+        mock_db.find_asset_by_url_prefix.return_value = None
+        return mock_db
+
+    def test_lightbox_href_rewritten_topic_local(self):
+        """Test that <a class='lightbox'> href is rewritten to local path."""
+        processor = HTMLProcessor()
+        html = (
+            '<a class="lightbox" href="https://cdn.example.com/full_res.png">'
+            '<img src="https://cdn.example.com/thumb.png" alt="photo">'
+            "</a>"
+        )
+
+        topic_assets = [
+            {
+                "url": "https://cdn.example.com/thumb.png",
+                "local_path": "archives/assets/images/42/thumb.png",
+            },
+            {
+                "url": "https://cdn.example.com/full_res.png",
+                "local_path": "archives/assets/images/42/full_res.png",
+            },
+        ]
+        mock_db = self._make_mock_db(topic_assets)
+
+        result = processor.rewrite_with_full_resolution_links(
+            html, topic_id=42, db=mock_db, page_depth=2
+        )
+
+        assert '../../assets/images/42/full_res.png"' in result
+        assert "../../assets/images/42/thumb.png" in result
+        assert "cdn.example.com" not in result
+
+    def test_lightbox_href_global_fallback(self):
+        """Test lightbox href resolved via global asset lookup."""
+        processor = HTMLProcessor()
+        html = (
+            '<a class="lightbox" href="https://cdn.example.com/original.png">'
+            '<img src="https://cdn.example.com/thumb.png" alt="photo">'
+            "</a>"
+        )
+
+        topic_assets = [
+            {
+                "url": "https://cdn.example.com/thumb.png",
+                "local_path": "archives/assets/images/42/thumb.png",
+            },
+        ]
+        global_assets = {
+            "https://cdn.example.com/original.png": (
+                "archives/assets/images/10/original.png"
+            ),
+        }
+        mock_db = self._make_mock_db(topic_assets, global_assets)
+
+        result = processor.rewrite_with_full_resolution_links(
+            html, topic_id=42, db=mock_db, page_depth=2
+        )
+
+        assert "../../assets/images/10/original.png" in result
+        assert "cdn.example.com" not in result
+
+    def test_lightbox_href_unresolved_kept(self):
+        """Test that unresolved lightbox href is left as external URL."""
+        processor = HTMLProcessor()
+        html = (
+            '<a class="lightbox" href="https://cdn.example.com/missing.png">'
+            '<img src="https://cdn.example.com/thumb.png" alt="photo">'
+            "</a>"
+        )
+
+        topic_assets = [
+            {
+                "url": "https://cdn.example.com/thumb.png",
+                "local_path": "archives/assets/images/42/thumb.png",
+            },
+        ]
+        mock_db = self._make_mock_db(topic_assets)
+
+        result = processor.rewrite_with_full_resolution_links(
+            html, topic_id=42, db=mock_db, page_depth=2
+        )
+
+        # Thumb should be rewritten, but lightbox href stays external
+        assert "../../assets/images/42/thumb.png" in result
+        assert "https://cdn.example.com/missing.png" in result
+
+
+class TestParseSrcsetDensity:
+    """Tests for parse_srcset with density descriptors (1.5x, 2x)."""
+
+    def test_density_descriptors_get_synthetic_widths(self):
+        """Density descriptors like 1x, 1.5x, 2x get synthetic widths."""
+        processor = HTMLProcessor()
+        result = processor.parse_srcset(
+            "img-1x.jpg 1x, img-1.5x.jpg 1.5x, img-2x.jpg 2x"
+        )
+        assert len(result) == 3
+        # Sorted by synthetic width: 700, 1050, 1400
+        assert result[0] == ("img-1x.jpg", 700)
+        assert result[1] == ("img-1.5x.jpg", 1050)
+        assert result[2] == ("img-2x.jpg", 1400)
+
+    def test_mixed_width_and_density_descriptors(self):
+        """Width and density descriptors can coexist."""
+        processor = HTMLProcessor()
+        result = processor.parse_srcset("img-small.jpg 400w, img-2x.jpg 2x")
+        assert len(result) == 2
+        assert result[0] == ("img-small.jpg", 400)
+        assert result[1] == ("img-2x.jpg", 1400)
+
+    def test_select_resolutions_from_density(self):
+        """select_image_resolutions picks 1x as medium, 2x as highest."""
+        processor = HTMLProcessor()
+        resolutions = processor.parse_srcset(
+            "img-1x.jpg 1x, img-1.5x.jpg 1.5x, img-2x.jpg 2x"
+        )
+        medium, highest = processor.select_image_resolutions(resolutions)
+        assert medium == "img-1x.jpg"  # 700 is closest to target 700
+        assert highest == "img-2x.jpg"  # last = largest
+
+
+class TestExtractLightboxRelative:
+    """Tests for extract_lightbox_urls with relative URLs."""
+
+    def test_relative_urls_resolved_with_base_url(self):
+        """Relative /uploads/short-url/... paths are made absolute."""
+        processor = HTMLProcessor()
+        html = '<a class="lightbox" href="/uploads/short-url/abc123.png"><img></a>'
+        result = processor.extract_lightbox_urls(
+            html, base_url="https://forum.example.com"
+        )
+        assert result == ["https://forum.example.com/uploads/short-url/abc123.png"]
+
+    def test_relative_urls_ignored_without_base_url(self):
+        """Relative URLs are skipped when no base_url provided."""
+        processor = HTMLProcessor()
+        html = '<a class="lightbox" href="/uploads/short-url/abc123.png"><img></a>'
+        result = processor.extract_lightbox_urls(html)
+        assert result == []
+
+    def test_absolute_urls_still_work(self):
+        """Absolute http URLs work as before."""
+        processor = HTMLProcessor()
+        html = '<a class="lightbox" href="https://cdn.example.com/full.png"><img></a>'
+        result = processor.extract_lightbox_urls(
+            html, base_url="https://forum.example.com"
+        )
+        assert result == ["https://cdn.example.com/full.png"]
+
+    def test_mixed_relative_and_absolute(self):
+        """Both relative and absolute lightbox URLs are extracted."""
+        processor = HTMLProcessor()
+        html = (
+            '<a class="lightbox" href="/uploads/short-url/abc.png"><img></a>'
+            '<a class="lightbox" href="https://cdn.example.com/full.png"><img></a>'
+        )
+        result = processor.extract_lightbox_urls(
+            html, base_url="https://forum.example.com"
+        )
+        assert len(result) == 2
+        assert "https://forum.example.com/uploads/short-url/abc.png" in result
+        assert "https://cdn.example.com/full.png" in result
+
+    def test_trailing_slash_on_base_url(self):
+        """Trailing slash on base_url doesn't cause double slashes."""
+        processor = HTMLProcessor()
+        html = '<a class="lightbox" href="/uploads/abc.png"><img></a>'
+        result = processor.extract_lightbox_urls(
+            html, base_url="https://forum.example.com/"
+        )
+        assert result == ["https://forum.example.com/uploads/abc.png"]
+
+
+class TestExtractEmojiUrls:
+    """Tests for extract_emoji_urls."""
+
+    def test_extract_emoji_from_cdn(self):
+        """Emoji images from CDN are extracted."""
+        processor = HTMLProcessor()
+        html = (
+            '<img class="emoji" src="https://emoji.discourse-cdn.com/twitter/smile.png"'
+            ' title=":smile:" alt=":smile:">'
+        )
+        result = processor.extract_emoji_urls(html)
+        assert len(result) == 1
+        assert "emoji.discourse-cdn.com" in result[0]
+
+    def test_non_emoji_images_ignored(self):
+        """Regular images without emoji class are not extracted."""
+        processor = HTMLProcessor()
+        html = '<img src="https://example.com/photo.jpg" alt="photo">'
+        result = processor.extract_emoji_urls(html)
+        assert result == []
+
+    def test_emoji_without_emoji_in_src_ignored(self):
+        """Emoji class images without 'emoji' in src are ignored."""
+        processor = HTMLProcessor()
+        html = '<img class="emoji" src="https://example.com/smiley.png" alt=":)">'
+        result = processor.extract_emoji_urls(html)
+        assert result == []
+
+    def test_empty_html(self):
+        """Empty HTML returns empty list."""
+        processor = HTMLProcessor()
+        assert processor.extract_emoji_urls("") == []
+
+    def test_multiple_emoji(self):
+        """Multiple emoji images are all extracted."""
+        processor = HTMLProcessor()
+        html = (
+            '<img class="emoji" src="https://emoji.discourse-cdn.com/twitter/smile.png">'
+            '<img class="emoji" src="https://emoji.discourse-cdn.com/twitter/heart.png">'
+            '<img src="https://example.com/photo.jpg">'
+        )
+        result = processor.extract_emoji_urls(html)
+        assert len(result) == 2

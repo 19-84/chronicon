@@ -231,3 +231,166 @@ class TestAssetDownloader:
             downloader.download_site_assets()
 
         # Method should complete without error
+
+    def test_letter_avatar_unique_filenames(self, mock_client, mock_db, temp_dir):
+        """Test that letter avatars get unique filenames instead of colliding."""
+        # Simulate two different letter avatar URLs
+        url_a = (
+            "https://meta.discourse.org/letter_avatar_proxy/v4/letter/a/82dd89/144.png"
+        )
+        url_b = (
+            "https://meta.discourse.org/letter_avatar_proxy/v4/letter/b/f14c23/144.png"
+        )
+
+        import urllib.parse
+
+        # Simulate the filename extraction logic from _download_file
+        def get_filename(url):
+            parsed = urllib.parse.urlparse(url)
+            raw_filename = Path(parsed.path).name or "asset"
+            if "/letter/" in parsed.path:
+                parts = [p for p in parsed.path.split("/") if p]
+                letter_idx = parts.index("letter")
+                raw_filename = "_".join(parts[letter_idx:])
+                if not Path(raw_filename).suffix:
+                    raw_filename += ".png"
+            return raw_filename
+
+        filename_a = get_filename(url_a)
+        filename_b = get_filename(url_b)
+
+        # Filenames must be different
+        assert filename_a != filename_b
+        # Both should contain identifying info
+        assert "letter" in filename_a
+        assert "letter" in filename_b
+        assert "a" in filename_a
+        assert "b" in filename_b
+
+    def test_download_emoji_url_to_shared_dir(self, mock_client, mock_db, temp_dir):
+        """Test that emoji URLs download to shared emoji directory."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"emoji_data"
+            mock_response.headers.get = Mock(
+                side_effect=lambda key, default=None: {"Content-Type": "image/png"}.get(
+                    key, default
+                )
+            )
+            mock_response.__enter__.return_value = mock_response
+            mock_urlopen.return_value = mock_response
+
+            result = downloader.download_emoji_url(
+                "https://emoji.discourse-cdn.com/twitter/heart.png"
+            )
+
+        assert result is not None
+        # Should be in emoji dir, not a topic dir
+        assert "emoji" in str(result.parent)
+        assert "images" not in str(result.parent)
+
+    def test_download_emoji_url_text_only(self, mock_client, mock_db, temp_dir):
+        """Test that text-only mode skips emoji downloads."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir, text_only=True)
+        result = downloader.download_emoji_url(
+            "https://emoji.discourse-cdn.com/twitter/heart.png"
+        )
+        assert result is None
+
+    def test_cdn_gets_longer_timeout(self, mock_client, mock_db, temp_dir):
+        """Test that CDN URLs use longer timeout and more retries."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"data"
+            mock_response.headers.get = Mock(return_value=None)
+            mock_response.__enter__.return_value = mock_response
+            mock_urlopen.return_value = mock_response
+
+            downloader.download_emoji_url(
+                "https://emoji.discourse-cdn.com/twitter/heart.png"
+            )
+
+            # Check the timeout passed to urlopen
+            call_args = mock_urlopen.call_args
+            assert call_args[1]["timeout"] == 30  # CDN timeout
+
+    def test_non_cdn_gets_standard_timeout(self, mock_client, mock_db, temp_dir):
+        """Test that non-CDN URLs use standard timeout."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"data"
+            mock_response.headers.get = Mock(return_value=None)
+            mock_response.__enter__.return_value = mock_response
+            mock_urlopen.return_value = mock_response
+
+            downloader.download_image(
+                "https://meta.discourse.org/uploads/image.png", topic_id=1
+            )
+
+            call_args = mock_urlopen.call_args
+            assert call_args[1]["timeout"] == 15  # Standard timeout
+
+    def test_migrate_emoji_to_shared_dir(self, mock_client, mock_db, temp_dir):
+        """Test migrating emoji from per-topic dirs to shared emoji dir."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        # Create a fake emoji in a per-topic dir
+        topic_dir = temp_dir / "images" / "12345"
+        topic_dir.mkdir(parents=True)
+        emoji_file = topic_dir / "heart.png"
+        emoji_file.write_bytes(b"emoji_data")
+
+        # Mock DB to return the per-topic path
+        mock_db.get_asset_path.return_value = str(emoji_file)
+
+        url = "https://emoji.discourse-cdn.com/twitter/heart.png"
+        migrated = downloader.migrate_emoji_to_shared_dir([url])
+
+        assert migrated == 1
+        # File should now exist in shared emoji dir
+        assert (downloader.emoji_dir / "heart.png").exists()
+        # DB should be updated
+        mock_db.register_asset.assert_called_once_with(
+            url, str(downloader.emoji_dir / "heart.png"), None
+        )
+
+    def test_migrate_skips_already_in_emoji_dir(self, mock_client, mock_db, temp_dir):
+        """Test migration skips emoji already in shared dir."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        # Create emoji already in the right place
+        emoji_file = downloader.emoji_dir / "heart.png"
+        emoji_file.write_bytes(b"emoji_data")
+
+        mock_db.get_asset_path.return_value = str(emoji_file)
+
+        url = "https://emoji.discourse-cdn.com/twitter/heart.png"
+        migrated = downloader.migrate_emoji_to_shared_dir([url])
+
+        assert migrated == 0
+        mock_db.register_asset.assert_not_called()
+
+    def test_download_emoji_url_migrates_cached(self, mock_client, mock_db, temp_dir):
+        """Test download_emoji_url migrates per-topic cached emoji."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        # Create emoji in per-topic dir
+        topic_dir = temp_dir / "images" / "999"
+        topic_dir.mkdir(parents=True)
+        emoji_file = topic_dir / "smile.png"
+        emoji_file.write_bytes(b"emoji_data")
+
+        mock_db.get_asset_path.return_value = str(emoji_file)
+
+        url = "https://emoji.discourse-cdn.com/twitter/smile.png"
+        result = downloader.download_emoji_url(url)
+
+        assert result is not None
+        assert "emoji" in str(result.parent)
+        assert result.name == "smile.png"

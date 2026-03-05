@@ -105,7 +105,7 @@ def test_hybrid_export_creates_both_formats(tmp_path, sample_db):
 
     # Verify HTML files exist at root
     assert (output_dir / "index.html").exists()
-    assert (output_dir / "t" / "test-topic" / "1.html").exists()
+    assert (output_dir / "t" / "test-topic" / "1" / "index.html").exists()
     assert (output_dir / "c" / "general" / "1" / "index.html").exists()
     # search.html and search_index.json only created with static search backend
     # Default is FTS (server-side search), so these files won't exist
@@ -149,7 +149,7 @@ def test_hybrid_export_html_only(tmp_path, sample_db):
 
     # HTML files should exist
     assert (output_dir / "index.html").exists()
-    assert (output_dir / "t" / "test-topic" / "1.html").exists()
+    assert (output_dir / "t" / "test-topic" / "1" / "index.html").exists()
 
     # Markdown directory should not exist
     assert not (output_dir / "md").exists()
@@ -265,7 +265,7 @@ def test_hybrid_export_incremental_topics(tmp_path, sample_db):
     exporter.export()
 
     # Verify initial files exist
-    html_topic = output_dir / "t" / "test-topic" / "1.html"
+    html_topic = output_dir / "t" / "test-topic" / "1" / "index.html"
     md_topic = output_dir / "md" / "t" / "test-topic" / "1.md"
 
     assert html_topic.exists()

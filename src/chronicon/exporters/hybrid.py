@@ -239,6 +239,12 @@ class HybridExporter(BaseExporter):
         config_path.write_text("\n".join(lines), encoding="utf-8")
         log.info("Generated _config.yml for GitHub Pages")
 
+        # Create .nojekyll to bypass Jekyll processing entirely
+        # Pre-built HTML archives don't need Jekyll and it can mangle output
+        nojekyll_path = self.output_dir / ".nojekyll"
+        nojekyll_path.write_text("", encoding="utf-8")
+        log.info("Generated .nojekyll")
+
     def _get_site_url(self) -> str | None:
         """
         Get the primary site URL from the database.

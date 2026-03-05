@@ -1282,7 +1282,7 @@ def test_main_archive_default_arguments():
         assert str(args.output_dir) == "archives"
         assert args.formats == "hybrid"
         assert args.text_only is False
-        assert args.include_users is False
+        assert args.include_users is None  # None means "use config default"
         assert args.workers == 8
         assert args.rate_limit == 0.5
 

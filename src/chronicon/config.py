@@ -36,6 +36,7 @@ class Config:
     text_only: bool
     posts_per_page: int
     pagination_enabled: bool
+    canonical_base_url: str | None
 
     # Continuous mode settings
     continuous_polling_interval: int  # minutes between checks
@@ -153,6 +154,8 @@ class Config:
                         config.posts_per_page = export["posts_per_page"]
                     if "pagination_enabled" in export:
                         config.pagination_enabled = export["pagination_enabled"]
+                    if "canonical_base_url" in export:
+                        config.canonical_base_url = export["canonical_base_url"]
 
                 # Parse continuous mode settings
                 if "continuous" in data:
@@ -231,10 +234,11 @@ class Config:
             retry_max=5,
             timeout=15,
             exponential_backoff_base=2,
-            include_users=False,
+            include_users=True,
             text_only=False,
             posts_per_page=50,
             pagination_enabled=True,
+            canonical_base_url=None,
             # Continuous mode defaults
             continuous_polling_interval=10,  # 10 minutes
             continuous_max_consecutive_errors=5,

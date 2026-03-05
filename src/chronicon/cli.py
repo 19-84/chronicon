@@ -4,6 +4,7 @@
 """Command-line interface for Chronicon."""
 
 import argparse
+import contextlib
 import sys
 from pathlib import Path
 
@@ -58,7 +59,10 @@ def main() -> None:
         "--text-only", action="store_true", help="Skip downloading images"
     )
     archive_parser.add_argument(
-        "--include-users", action="store_true", help="Generate user profile pages"
+        "--include-users",
+        action="store_true",
+        default=None,
+        help="Generate user profile pages (default: from config)",
     )
     archive_parser.add_argument(
         "--categories", help="Specific category IDs (comma-separated)"
@@ -215,7 +219,10 @@ def main() -> None:
         help="Export formats (comma-separated: html, md, hybrid, json)",
     )
     export_parser.add_argument(
-        "--include-users", action="store_true", help="Generate user profile pages"
+        "--include-users",
+        action="store_true",
+        default=None,
+        help="Generate user profile pages (default: from config)",
     )
     export_parser.add_argument(
         "--search-backend",
@@ -311,7 +318,9 @@ def run_archive(args: argparse.Namespace, config: Config) -> int | None:
                 output_dir=args.output_dir,
                 formats=formats,
                 text_only=args.text_only,
-                include_users=args.include_users,
+                include_users=args.include_users
+                if args.include_users is not None
+                else config.include_users,
                 category_ids=category_ids,
                 since_date=args.since,
                 workers=args.workers,
@@ -545,6 +554,16 @@ def _archive_site(
             if category_ids:
                 categories = [c for c in categories if c.id in category_ids]
 
+                # Fetch missing categories individually (e.g. subcategories
+                # not returned by the top-level /categories.json endpoint)
+                found_ids = {c.id for c in categories}
+                for cid in category_ids:
+                    if cid not in found_ids:
+                        cat = category_fetcher.fetch_category(cid)
+                        if cat:
+                            categories.append(cat)
+                            log.info(f"Fetched subcategory: {cat.name} (id={cat.id})")
+
             # Store categories in database
             for category in categories:
                 db.insert_category(category)
@@ -775,61 +794,37 @@ def _archive_site(
                 if asset_downloader.get_stats()["total_queued"] % 10 == 0:
                     update_stats_display()
 
-            # Get all posts and process their HTML
+            # Collect all image URLs per topic, then batch download
+            # This is much faster than sequential per-image downloads
+            topic_image_urls: dict[int, list[str]] = {}
+            all_emoji_urls: list[str] = []
+
             for topic in all_topics:
+                urls_for_topic: list[str] = []
                 posts = db.get_topic_posts(topic.id)
                 for post in posts:
                     if post.cooked:
                         try:
-                            # Extract image sets with resolution info
                             image_sets = html_processor.extract_image_sets(post.cooked)
-
-                            # Download only medium + highest resolution
-                            # for each image set
                             for _base_id, img_set in image_sets.items():
-                                # Download medium resolution if available
-                                if img_set["medium"] and img_set["medium"] not in [
-                                    None,
-                                    "",
-                                ]:
-                                    try:
-                                        asset_downloader.download_image(
-                                            img_set["medium"],
-                                            topic.id,
-                                            callback=image_callback,
-                                        )
-                                    except Exception as img_err:
-                                        log.debug(
-                                            "Failed to download medium "
-                                            f"resolution: {img_err}"
-                                        )
+                                # Download all srcset variants
+                                for url in img_set.get("all_urls", []):
+                                    if url and url not in [None, ""]:
+                                        urls_for_topic.append(url)
 
-                                # Download highest resolution if different from medium
-                                if (
-                                    img_set["highest"]
-                                    and img_set["highest"] not in [None, ""]
-                                    and img_set["highest"] != img_set["medium"]
-                                ):
-                                    try:
-                                        asset_downloader.download_image(
-                                            img_set["highest"],
-                                            topic.id,
-                                            callback=image_callback,
-                                        )
-                                    except Exception as img_err:
-                                        log.debug(
-                                            "Failed to download highest "
-                                            f"resolution: {img_err}"
-                                        )
+                            lightbox_urls = html_processor.extract_lightbox_urls(
+                                post.cooked, base_url=site_url
+                            )
+                            urls_for_topic.extend(lightbox_urls)
 
+                            emoji_urls = html_processor.extract_emoji_urls(post.cooked)
+                            all_emoji_urls.extend(emoji_urls)
                         except Exception as e:
                             log.error(f"Error processing HTML for post {post.id}: {e}")
 
-                    # Update progress
                     posts_processed += 1
                     progress.advance(image_task, 1)
 
-                    # Update description every 50 posts
                     if posts_processed % 50 == 0:
                         asset_stats = asset_downloader.get_stats()
                         progress.update(
@@ -841,6 +836,71 @@ def _archive_site(
                             ),
                         )
                         update_stats_display()
+
+                if urls_for_topic:
+                    topic_image_urls[topic.id] = urls_for_topic
+
+            # Batch download all images with high concurrency
+            total_images = sum(len(v) for v in topic_image_urls.values())
+            if total_images > 0:
+                dl_task = progress.add_task(
+                    f"[cyan]Downloading {total_images} images "
+                    f"across {len(topic_image_urls)} topics...",
+                    total=total_images,
+                )
+
+                def batch_image_callback(url, success, cached, bytes_downloaded):
+                    progress.advance(dl_task, 1)
+                    if asset_downloader.get_stats()["total_queued"] % 25 == 0:
+                        update_stats_display()
+
+                for topic_id, urls in topic_image_urls.items():
+                    topic_dir = asset_downloader.images_dir / str(topic_id)
+                    topic_dir.mkdir(parents=True, exist_ok=True)
+                    asset_downloader.batch_download(
+                        urls,
+                        topic_dir,
+                        max_workers=20,
+                        callback=batch_image_callback,
+                    )
+
+                asset_stats = asset_downloader.get_stats()
+                progress.update(
+                    dl_task,
+                    description=(
+                        f"[green]✓ Downloaded {asset_stats['downloaded']} images "
+                        f"({asset_stats['cached']} cached, "
+                        f"{asset_stats['failed']} failed)"
+                    ),
+                )
+
+            # Batch download emoji to shared directory (deduplicated)
+            unique_emoji = list(set(all_emoji_urls))
+            if unique_emoji:
+                # Migrate any emoji cached in per-topic dirs
+                migrated = asset_downloader.migrate_emoji_to_shared_dir(unique_emoji)
+                if migrated:
+                    log.info(f"Migrated {migrated} emoji to shared dir")
+
+                emoji_task = progress.add_task(
+                    f"[cyan]Downloading {len(unique_emoji)} emoji...",
+                    total=len(unique_emoji),
+                )
+
+                def emoji_callback(url, success, cached, bytes_downloaded):
+                    progress.advance(emoji_task, 1)
+
+                asset_downloader.batch_download(
+                    unique_emoji,
+                    asset_downloader.emoji_dir,
+                    max_workers=20,
+                    callback=emoji_callback,
+                )
+                asset_stats = asset_downloader.get_stats()
+                progress.update(
+                    emoji_task,
+                    description=(f"[green]✓ Emoji: {len(unique_emoji)} processed"),
+                )
 
             # Final update
             asset_stats = asset_downloader.get_stats()
@@ -1035,6 +1095,9 @@ def _archive_site(
                             db,
                             html_dir,
                             include_users=include_users,
+                            config={"export": config.__dict__}
+                            if hasattr(config, "__dict__")
+                            else {},
                             posts_per_page=config.posts_per_page,
                             pagination_enabled=config.pagination_enabled,
                             progress=export_progress,
@@ -1255,33 +1318,26 @@ def run_update(args: argparse.Namespace, config: Config) -> None:
                     try:
                         image_sets = html_processor.extract_image_sets(post.cooked)
                         for _base_id, img_set in image_sets.items():
-                            if img_set["medium"] and img_set["medium"] not in [
-                                None,
-                                "",
-                            ]:
-                                try:
-                                    asset_downloader.download_image(
-                                        img_set["medium"], topic_id
-                                    )
-                                except Exception as img_err:
-                                    log.debug(
-                                        "Failed to download medium "
-                                        f"resolution: {img_err}"
-                                    )
-                            if (
-                                img_set["highest"]
-                                and img_set["highest"] not in [None, ""]
-                                and img_set["highest"] != img_set["medium"]
-                            ):
-                                try:
-                                    asset_downloader.download_image(
-                                        img_set["highest"], topic_id
-                                    )
-                                except Exception as img_err:
-                                    log.debug(
-                                        "Failed to download highest "
-                                        f"resolution: {img_err}"
-                                    )
+                            # Download all srcset variants
+                            for url in img_set.get("all_urls", []):
+                                if url and url not in [None, ""]:
+                                    with contextlib.suppress(Exception):
+                                        asset_downloader.download_image(url, topic_id)
+
+                        # Download lightbox full-resolution originals
+                        lightbox_urls = html_processor.extract_lightbox_urls(
+                            post.cooked, base_url=site_url
+                        )
+                        for lb_url in lightbox_urls:
+                            with contextlib.suppress(Exception):
+                                asset_downloader.download_image(lb_url, topic_id)
+
+                        # Download emoji to shared directory
+                        emoji_urls = html_processor.extract_emoji_urls(post.cooked)
+                        for emoji_url in emoji_urls:
+                            with contextlib.suppress(Exception):
+                                asset_downloader.download_emoji_url(emoji_url)
+
                     except Exception as e:
                         log.error(f"Error processing HTML for post {post.id}: {e}")
         console.print("[green]✓ Asset download complete[/green]")
@@ -1329,6 +1385,9 @@ def run_update(args: argparse.Namespace, config: Config) -> None:
                         db,
                         html_dir,
                         include_users=config.include_users,
+                        config={"export": config.__dict__}
+                        if hasattr(config, "__dict__")
+                        else {},
                         posts_per_page=config.posts_per_page,
                         pagination_enabled=config.pagination_enabled,
                         progress=regen_progress,
@@ -1366,6 +1425,9 @@ def run_update(args: argparse.Namespace, config: Config) -> None:
                         include_html=True,
                         include_md=True,
                         include_users=config.include_users,
+                        config={"export": config.__dict__}
+                        if hasattr(config, "__dict__")
+                        else {},
                         progress=regen_progress,
                     )
                     hybrid_exporter.export_topics(topic_ids)
@@ -1743,6 +1805,9 @@ def run_migrate(args: argparse.Namespace, config: Config) -> None:
                 exporter = HTMLStaticExporter(
                     db,
                     html_dir,
+                    config={"export": config.__dict__}
+                    if hasattr(config, "__dict__")
+                    else {},
                     posts_per_page=config.posts_per_page,
                     pagination_enabled=config.pagination_enabled,
                 )
@@ -1761,6 +1826,9 @@ def run_migrate(args: argparse.Namespace, config: Config) -> None:
                     output_dir,
                     include_html=True,
                     include_md=True,
+                    config={"export": config.__dict__}
+                    if hasattr(config, "__dict__")
+                    else {},
                 )
                 exporter.export()
                 console.print("[green]✓ Hybrid export complete[/green]")
@@ -2236,7 +2304,9 @@ def run_export(args: argparse.Namespace, config: Config) -> None:
 
     # Parse formats
     formats = [fmt.strip() for fmt in args.formats.split(",")]
-    include_users = args.include_users
+    include_users = (
+        args.include_users if args.include_users is not None else config.include_users
+    )
     search_backend = args.search_backend
 
     overall_start = time_module.time()
@@ -2262,6 +2332,9 @@ def run_export(args: argparse.Namespace, config: Config) -> None:
                     include_users=include_users,
                     posts_per_page=config.posts_per_page,
                     pagination_enabled=config.pagination_enabled,
+                    config={"export": config.__dict__}
+                    if hasattr(config, "__dict__")
+                    else {},
                     progress=export_progress,
                     search_backend=search_backend,
                 )
@@ -2288,6 +2361,9 @@ def run_export(args: argparse.Namespace, config: Config) -> None:
                     db,
                     html_dir,
                     include_users=include_users,
+                    config={"export": config.__dict__}
+                    if hasattr(config, "__dict__")
+                    else {},
                     posts_per_page=config.posts_per_page,
                     pagination_enabled=config.pagination_enabled,
                     progress=export_progress,

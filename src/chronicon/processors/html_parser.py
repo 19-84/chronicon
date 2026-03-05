@@ -119,13 +119,23 @@ class HTMLProcessor:
 
             url = parts[0]
 
-            # Extract width if specified (e.g., "800w")
+            # Extract width from descriptor (e.g., "800w" or "1.5x")
             width = 0
-            if len(parts) > 1 and parts[1].endswith("w"):
-                try:
-                    width = int(parts[1][:-1])  # Remove 'w' suffix
-                except ValueError:
-                    width = 0
+            if len(parts) > 1:
+                descriptor = parts[1]
+                if descriptor.endswith("w"):
+                    try:
+                        width = int(descriptor[:-1])
+                    except ValueError:
+                        width = 0
+                elif descriptor.endswith("x"):
+                    try:
+                        # Convert density to synthetic width for sorting
+                        # 1x=700, 1.5x=1050, 2x=1400
+                        density = float(descriptor[:-1])
+                        width = int(700 * density)
+                    except ValueError:
+                        width = 0
 
             results.append((url, width))
 
@@ -161,6 +171,63 @@ class HTMLProcessor:
         )[0]
 
         return (medium_url, highest_url)
+
+    def extract_lightbox_urls(self, html: str, base_url: str = "") -> list[str]:
+        """
+        Extract full-resolution URLs from lightbox anchor tags.
+
+        Args:
+            html: HTML content
+            base_url: Base URL to prepend to relative paths (e.g. "https://forum.example.com")
+
+        Returns:
+            List of full-resolution image URLs from lightbox links
+        """
+        if not html:
+            return []
+
+        if BeautifulSoup is None:
+            raise ImportError(
+                "BeautifulSoup4 is required. Install with: uv add beautifulsoup4"
+            )
+
+        urls = []
+        soup = BeautifulSoup(html, "html.parser")
+        for anchor in soup.find_all("a", class_="lightbox"):
+            href = anchor.get("href")
+            if not href:
+                continue
+            if href.startswith("http"):
+                urls.append(href)
+            elif href.startswith("/") and base_url:
+                urls.append(base_url.rstrip("/") + href)
+        return urls
+
+    def extract_emoji_urls(self, html: str) -> list[str]:
+        """
+        Extract emoji image URLs from post HTML.
+
+        Args:
+            html: HTML content
+
+        Returns:
+            List of emoji image URLs
+        """
+        if not html:
+            return []
+
+        if BeautifulSoup is None:
+            raise ImportError(
+                "BeautifulSoup4 is required. Install with: uv add beautifulsoup4"
+            )
+
+        urls = []
+        soup = BeautifulSoup(html, "html.parser")
+        for img in soup.find_all("img", class_="emoji"):
+            src = img.get("src")
+            if src and "emoji" in src:
+                urls.append(src)
+        return urls
 
     def extract_image_sets(self, html: str) -> dict:
         """
@@ -614,8 +681,9 @@ class HTMLProcessor:
                 }
             )
 
-        # Pass 1: Try to resolve each entry, track resolved widths
+        # Pass 1: Try to resolve each entry, track resolved widths/densities
         resolved_variants = []  # [(width_int, relative_path), ...]
+        resolved_density = []  # [(multiplier_float, relative_path), ...]
         results = []  # parallel list: resolved relative_path or None
 
         for pe in parsed_entries:
@@ -655,37 +723,64 @@ class HTMLProcessor:
                     f"{relative_path} {descriptor}" if descriptor else relative_path
                 )
                 results.append(rewritten)
-                # Track width for pass 2 nearest-variant matching
+                # Track for pass 2 nearest-variant matching
                 if descriptor.endswith("w"):
                     try:
                         width = int(descriptor[:-1])
                         resolved_variants.append((width, relative_path))
                     except ValueError:
                         pass
+                elif descriptor.endswith("x"):
+                    try:
+                        multiplier = float(descriptor[:-1])
+                        resolved_density.append((multiplier, relative_path))
+                    except ValueError:
+                        pass
             else:
                 # Mark as unresolved for pass 2
                 results.append(None)
 
-        # Pass 2: Map unresolved width-descriptor entries to nearest resolved
+        # Pass 2: Map unresolved entries to nearest resolved variant
+        any_resolved_path = None
         if resolved_variants:
+            any_resolved_path = resolved_variants[0][1]
+        elif resolved_density:
+            any_resolved_path = resolved_density[0][1]
+
+        if resolved_variants or resolved_density or any_resolved_path:
             for i, pe in enumerate(parsed_entries):
                 if results[i] is not None:
                     continue
                 descriptor = pe["descriptor"]
-                # Only apply nearest-variant logic to width descriptors
-                if not descriptor.endswith("w"):
+                if descriptor.endswith("w") and resolved_variants:
+                    try:
+                        target_width = int(descriptor[:-1])
+                    except ValueError:
+                        results[i] = pe["original"]
+                        continue
+                    nearest_path = min(
+                        resolved_variants, key=lambda r: abs(r[0] - target_width)
+                    )[1]
+                    results[i] = f"{nearest_path} {descriptor}"
+                elif descriptor.endswith("x"):
+                    if resolved_density:
+                        try:
+                            target_mult = float(descriptor[:-1])
+                        except ValueError:
+                            results[i] = pe["original"]
+                            continue
+                        nearest_path = min(
+                            resolved_density,
+                            key=lambda r: abs(r[0] - target_mult),
+                        )[1]
+                        results[i] = f"{nearest_path} {descriptor}"
+                    elif any_resolved_path:
+                        # No density variants resolved but we have a width one
+                        results[i] = f"{any_resolved_path} {descriptor}"
+                    else:
+                        results[i] = pe["original"]
+                else:
                     results[i] = pe["original"]
-                    continue
-                try:
-                    target_width = int(descriptor[:-1])
-                except ValueError:
-                    results[i] = pe["original"]
-                    continue
-                # Find nearest resolved variant by width proximity
-                nearest_path = min(
-                    resolved_variants, key=lambda r: abs(r[0] - target_width)
-                )[1]
-                results[i] = f"{nearest_path} {descriptor}"
 
         # Fill any remaining unresolved entries with originals
         for i, pe in enumerate(parsed_entries):
@@ -853,6 +948,51 @@ class HTMLProcessor:
             tag["srcset"] = self._rewrite_srcset_value(
                 srcset, asset_map, db, rel_prefix
             )
+
+        # Rewrite <a class="lightbox"> href attributes
+        for anchor in soup.find_all("a", class_="lightbox"):
+            href = anchor.get("href")
+            if not href or not href.startswith("http"):
+                continue
+
+            relative_path = None
+
+            # Try topic-scoped lookup
+            if href in asset_map:
+                relative_path = self._resolve_asset_relative_path(
+                    asset_map[href], rel_prefix
+                )
+
+            # Try global lookup
+            if not relative_path:
+                global_path = db.get_asset_path(href)
+                if not global_path:
+                    parsed = urllib.parse.urlparse(href)
+                    if parsed.query:
+                        base_url = urllib.parse.urlunparse(parsed._replace(query=""))
+                        global_path = db.find_asset_by_url_prefix(base_url)
+                if global_path:
+                    relative_path = self._resolve_asset_relative_path(
+                        global_path, rel_prefix
+                    )
+
+            # Filename pattern fallback
+            if not relative_path:
+                original_filename = href.split("/")[-1].split("?")[0]
+                for _url, path in asset_map.items():
+                    if original_filename in Path(path).name:
+                        relative_path = self._resolve_asset_relative_path(
+                            path, rel_prefix
+                        )
+                        if not relative_path:
+                            relative_path = (
+                                f"{rel_prefix}assets/images/{topic_id}/"
+                                f"{Path(path).name}"
+                            )
+                        break
+
+            if relative_path:
+                anchor["href"] = relative_path
 
         return str(soup)
 
