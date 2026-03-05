@@ -6,7 +6,9 @@ Demonstrates all API capabilities with meta.discourse.org archive
 
 import os
 
-os.environ["DATABASE_URL"] = f"sqlite:///{os.getcwd()}/examples/meta-example/archive.db"
+os.environ.setdefault(
+    "DATABASE_URL", f"sqlite:///{os.getcwd()}/archives/archive.db"
+)
 
 from chronicon.utils.logger import setup_logging
 

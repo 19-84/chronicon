@@ -317,16 +317,23 @@ Access points after deployment:
 ```
 output_html/
 ├── index.html                 # Homepage with category list
-├── categories/
+├── c/
 │   └── category-slug/
 │       └── index.html         # Category page with topics
-├── topics/
-│   └── YYYY-MM/
-│       └── topic-slug-123.html
+├── t/
+│   └── topic-slug/
+│       └── 123/
+│           ├── index.html     # Topic page (first page)
+│           └── page-2.html    # Paginated pages
+├── u/
+│   └── username/
+│       └── index.html         # User profile page
 ├── assets/
 │   ├── css/                   # Default theme CSS
 │   ├── js/                    # Search functionality
-│   └── images/                # Downloaded images
+│   ├── images/                # Downloaded post images
+│   ├── emoji/                 # Shared emoji assets
+│   └── site/                  # Favicon, logo, banner
 └── search_index.json          # Client-side search index
 ```
 
@@ -477,7 +484,7 @@ markdown/
 └── categories/                 # Category indexes
 ```
 
-See [examples/meta-example](examples/meta-example/) for a complete sample archive from meta.discourse.org (101 topics, all three formats).
+See the [live demo archive](https://online-archives.github.io/chronicon-archive-example/) for a complete sample archive from meta.discourse.org, or browse the [source repository](https://github.com/online-archives/chronicon-archive-example).
 
 ## Development
 
@@ -513,7 +520,7 @@ uv run pytest --cov=chronicon --cov-report=html
 
 ### Running Tests
 
-The project has 350+ passing tests with 80% coverage:
+The project has 520+ passing tests with 80% coverage:
 - CLI command tests (archive, update, validate, migrate, watch)
 - Fetcher integration tests
 - Concurrent processing tests

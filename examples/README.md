@@ -1,50 +1,32 @@
-# Example Archive Status
+# Examples
 
-## Current State (Post-Fix)
+## Demo Archive
 
-The example archive currently has incomplete data due to regeneration issues during development. The database has been corrupted/reset during troubleshooting.
+A live demo archive of meta.discourse.org (Theme category) is hosted at:
 
-## Fix Applied
+- **Live site:** https://online-archives.github.io/chronicon-archive-example/
+- **Source repo:** https://github.com/online-archives/chronicon-archive-example
 
-The user profile fetching bug has been **FIXED** in commit `12e3ac2`. All future archives will correctly fetch user profiles for all users.
-
-### What Was Fixed:
-- User fetching now scans ALL posts in database (not just current run)
-- Added `get_unique_usernames()` method to database classes
-- Prevents missing user profiles in incremental/interrupted archives
-
-## Regenerating the Example Archive
-
-To regenerate the example archive with complete user profiles:
+## Generating Your Own Archive
 
 ```bash
-# 1. Clean start
-rm -rf examples/meta-example
-mkdir -p examples/meta-example
-
-# 2. Create archive with ~100 topics from meta.discourse.org
-.venv/bin/python -m chronicon.cli archive \
+# Archive a category from meta.discourse.org
+chronicon archive \
   --urls https://meta.discourse.org \
-  --sweep \
-  --start-id 394700 \
-  --end-id 394500 \
-  --output-dir ./examples/meta-example \
-  --formats html,markdown,markdown-github
+  --categories 61 \
+  --output-dir ./my-archive \
+  --formats html,markdown-github \
+  --search-backend static
 
-# This will now automatically:
-# - Fetch all topics in ID range
-# - Fetch ALL posts for those topics  
-# - Scan database for unique usernames
-# - Fetch user profiles for ALL users
-# - Generate exports with complete user pages
+# Export with canonical URLs for GitHub Pages
+# Add to .chronicon.toml:
+# [export]
+# canonical_base_url = "https://yourusername.github.io/your-repo"
 ```
 
-The fix ensures that:
-1. Initial archives fetch all user profiles
-2. Incremental updates fetch missing user profiles
-3. No ad-hoc scripts needed
-4. Production-ready and repeatable
+## Docker Examples
 
-## Note
+See `examples/docker/` for production-ready Docker deployment configurations:
 
-The example archive in the current commit may have incomplete user data due to the corruption during fix development. This does not affect the functionality - the bug is fixed in the code and all future archives will work correctly.
+- `docker-compose.yml` — SQLite-based deployment
+- `docker-compose.postgres.yml` — PostgreSQL-based deployment with API server

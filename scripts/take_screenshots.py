@@ -34,7 +34,7 @@ def take_screenshot_chrome(url, output_path, width=1280, height=800, wait_time=2
 def main():
     # Setup paths
     base_dir = Path(__file__).resolve().parent.parent
-    html_dir = base_dir / "examples" / "meta-example" / "html"
+    html_dir = base_dir / "archives" / "html"
     screenshots_dir = base_dir / "docs" / "screenshots"
     screenshots_dir.mkdir(parents=True, exist_ok=True)
 

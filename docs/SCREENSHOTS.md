@@ -40,12 +40,9 @@ All screenshots are located in `docs/screenshots/` and are referenced in the mai
 
 ## Source Archive
 
-All screenshots were captured from the example archive:
-- **Location:** `examples/meta-example/`
-- **Source:** meta.discourse.org
-- **Topics:** 101
-- **Posts:** 264
-- **Date Range:** 2016-2026
+Screenshots were captured from the demo archive of meta.discourse.org:
+- **Live site:** https://online-archives.github.io/chronicon-archive-example/
+- **Source repo:** https://github.com/online-archives/chronicon-archive-example
 
 ## Capture Method
 
@@ -59,7 +56,6 @@ Screenshots were captured using Playwright with headless Chromium:
 
 Screenshots are embedded in:
 1. **Main README.md** - Features section with screenshot gallery
-2. **examples/meta-example/README.md** - Links to main README screenshots
 
 ## Updating Screenshots
 

@@ -312,16 +312,23 @@ exporter.update_index()  # Update search index and category pages
 ```
 output/html/
 ├── index.html                 # Homepage
-├── categories/
+├── c/
 │   └── category-slug/
 │       └── index.html
-├── topics/
-│   └── YYYY-MM/
-│       └── topic-slug-123.html
+├── t/
+│   └── topic-slug/
+│       └── 123/
+│           ├── index.html     # Topic page
+│           └── page-2.html    # Paginated pages
+├── u/
+│   └── username/
+│       └── index.html         # User profile
 ├── assets/
 │   ├── css/
 │   ├── js/
-│   └── images/
+│   ├── images/
+│   ├── emoji/
+│   └── site/
 └── search_index.json
 ```
 

@@ -15,14 +15,12 @@ from fastapi.testclient import TestClient
 
 from chronicon.storage.database import ArchiveDatabase
 
-ARCHIVE_DB_PATH = (
-    Path(__file__).parent.parent / "examples" / "meta-example" / "archive.db"
-)
+ARCHIVE_DB_PATH = Path(__file__).parent.parent / "archives" / "archive.db"
 
 # Skip entire module if archive.db doesn't exist
 pytestmark = pytest.mark.skipif(
     not ARCHIVE_DB_PATH.exists(),
-    reason="examples/meta-example/archive.db not found",
+    reason="archives/archive.db not found (run archive command first)",
 )
 
 

@@ -13,7 +13,7 @@ def take_screenshots():
 
     # Set up paths
     base_dir = Path(__file__).resolve().parent.parent
-    html_dir = base_dir / "examples" / "meta-example" / "html"
+    html_dir = base_dir / "archives" / "html"
     screenshots_dir = base_dir / "docs" / "screenshots"
     screenshots_dir.mkdir(parents=True, exist_ok=True)
 

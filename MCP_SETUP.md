@@ -63,11 +63,11 @@ You can also test the MCP server directly:
 
 ```bash
 # Test that it starts
-export DATABASE_URL="sqlite:///./examples/meta-example/archive.db"
+export DATABASE_URL="sqlite:///./path/to/your/archive.db"
 .venv/bin/python -m chronicon.cli mcp
 
 # Or use the MCP test script we created earlier
-export DATABASE_URL="sqlite:///./examples/meta-example/archive.db"
+export DATABASE_URL="sqlite:///./path/to/your/archive.db"
 .venv/bin/python << 'EOF'
 import sys
 sys.path.insert(0, 'src')
@@ -109,7 +109,7 @@ The MCP server configuration in `opencode.json` looks like:
         "mcp"
       ],
       "environment": {
-        "DATABASE_URL": "sqlite:////path/to/chronicon/examples/meta-example/archive.db"
+        "DATABASE_URL": "sqlite:////path/to/your/archive.db"
       },
       "enabled": true
     }
@@ -123,13 +123,8 @@ The MCP server configuration in `opencode.json` looks like:
 
 To use a different database, update the `DATABASE_URL` environment variable.
 
-## Archive Information
+## Demo Archive
 
-The example archive is from meta.discourse.org with:
-- **65 topics**
-- **2,505 posts**
-- **594 users**
-- **1 category**
-- Full-text search enabled
-
-Enjoy exploring the archive with OpenCode! 🎉
+A live demo archive from meta.discourse.org is available at:
+- **Live site:** https://online-archives.github.io/chronicon-archive-example/
+- **Source repo:** https://github.com/online-archives/chronicon-archive-example

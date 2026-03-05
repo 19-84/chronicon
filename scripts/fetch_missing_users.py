@@ -19,7 +19,7 @@ import sqlite3
 
 def main():
     """Fetch all missing users."""
-    db_path = Path("examples/meta-example/archive.db")
+    db_path = Path("archives/archive.db")
 
     if not db_path.exists():
         print(f"Error: Database not found at {db_path}")

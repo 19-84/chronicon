@@ -9,8 +9,8 @@ from chronicon.exporters.markdown import MarkdownGitHubExporter
 
 print("Completing archive process...\n")
 
-db_path = Path("./examples/meta-example/archive.db")
-output_dir = Path("./examples/meta-example")
+db_path = Path("./archives/archive.db")
+output_dir = Path("./archives")
 db = ArchiveDatabase(db_path)
 client = DiscourseAPIClient("https://meta.discourse.org")
 
