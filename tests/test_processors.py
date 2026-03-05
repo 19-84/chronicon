@@ -1524,7 +1524,7 @@ class TestExtractEmojiUrls:
         )
         result = processor.extract_emoji_urls(html)
         assert len(result) == 1
-        assert "emoji.discourse-cdn.com" in result[0]
+        assert result[0] == "https://emoji.discourse-cdn.com/twitter/smile.png"
 
     def test_non_emoji_images_ignored(self):
         """Regular images without emoji class are not extracted."""
