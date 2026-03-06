@@ -358,6 +358,11 @@ class ArchiveDatabaseBase(ABC):
         pass
 
     @abstractmethod
+    def get_assets_for_topic(self, topic_id: int) -> list[dict]:
+        """Get all assets downloaded for a specific topic."""
+        pass
+
+    @abstractmethod
     def find_asset_by_url_prefix(self, url_prefix: str) -> str | None:
         """
         Find asset path by URL prefix match (ignoring query params).
