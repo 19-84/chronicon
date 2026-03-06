@@ -1,14 +1,18 @@
 # Chronicon
 
-**[Documentation Index](DOCUMENTATION.md)** | [FAQ](FAQ.md) | [Troubleshooting](TROUBLESHOOTING.md) | [API Reference](API_REFERENCE.md)
-
----
-
 A powerful, multi-format archiver for Discourse forums.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://unlicense.org/)
 [![Tests](https://github.com/19-84/chronicon/actions/workflows/test.yml/badge.svg)](https://github.com/19-84/chronicon/actions/workflows/test.yml)
+
+**[Live Demo](https://online-archives.github.io/chronicon-archive-example/)** — a static archive of Discourse Meta's Theme category ([source](https://github.com/online-archives/chronicon-archive-example))
+
+If you find this useful, consider giving it a star on GitHub — it helps others discover the project.
+
+**[Documentation](DOCUMENTATION.md)** | [FAQ](FAQ.md) | [Troubleshooting](TROUBLESHOOTING.md) | [API Reference](API_REFERENCE.md)
+
+---
 
 ## Features
 
