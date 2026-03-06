@@ -11,14 +11,16 @@ from pathlib import Path
 class SearchIndexer:
     """Generate search index for client-side search."""
 
-    def __init__(self, db):
+    def __init__(self, db, posts_per_page: int = 50):
         """
         Initialize search indexer.
 
         Args:
             db: ArchiveDatabase instance
+            posts_per_page: Posts per page for computing paginated URLs
         """
         self.db = db
+        self.posts_per_page = posts_per_page
 
     def generate_index(self, output_path: Path) -> None:
         """
@@ -87,14 +89,26 @@ class SearchIndexer:
         all_topics = self.db.get_all_topics()
         for topic in all_topics:
             posts = self.db.get_topic_posts(topic.id)
-            for post in posts[1:]:  # Skip first post
+            for idx, post in enumerate(posts):
+                if idx == 0:
+                    continue  # Skip first post (already indexed as topic)
+
                 # Strip HTML
                 soup = BeautifulSoup(post.cooked, "html.parser")
                 content = soup.get_text()
                 excerpt = self.extract_excerpt(content)
 
-                # Generate post URL with anchor (matches HTML export structure)
-                post_url = f"t/{topic.slug}/{topic.id}/#post-{post.post_number}"
+                # Compute which page this post is on
+                page_num = (idx // self.posts_per_page) + 1
+                if page_num == 1:
+                    post_url = (
+                        f"t/{topic.slug}/{topic.id}/#post-{post.post_number}"
+                    )
+                else:
+                    post_url = (
+                        f"t/{topic.slug}/{topic.id}/"
+                        f"page-{page_num}.html#post-{post.post_number}"
+                    )
 
                 items.append(
                     {

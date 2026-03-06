@@ -1283,7 +1283,7 @@ class HTMLStaticExporter(BaseExporter):
     def generate_search_index(self) -> None:
         """Generate search index JSON."""
 
-        indexer = SearchIndexer(self.db)
+        indexer = SearchIndexer(self.db, posts_per_page=self.posts_per_page)
         search_index_path = self.output_dir / "search_index.json"
         indexer.generate_index(search_index_path)
 
