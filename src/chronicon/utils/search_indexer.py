@@ -101,9 +101,7 @@ class SearchIndexer:
                 # Compute which page this post is on
                 page_num = (idx // self.posts_per_page) + 1
                 if page_num == 1:
-                    post_url = (
-                        f"t/{topic.slug}/{topic.id}/#post-{post.post_number}"
-                    )
+                    post_url = f"t/{topic.slug}/{topic.id}/#post-{post.post_number}"
                 else:
                     post_url = (
                         f"t/{topic.slug}/{topic.id}/"
