@@ -431,7 +431,7 @@ class HTMLStaticExporter(BaseExporter):
         canonical_url = seo_context.get("canonical_url")
         if canonical_url and page_num > 1:
             # Update canonical URL for paginated pages
-            canonical_url = f"{canonical_url}/page-{page_num}"
+            canonical_url = f"{canonical_url}/page-{page_num}.html"
 
         # Create pagination context
         pagination = {
@@ -1809,7 +1809,7 @@ class HTMLStaticExporter(BaseExporter):
                 if p == 1:
                     loc = f"{base}/t/{topic.slug}/{topic.id}"
                 else:
-                    loc = f"{base}/t/{topic.slug}/{topic.id}/page-{p}"
+                    loc = f"{base}/t/{topic.slug}/{topic.id}/page-{p}.html"
                 urls.append((loc, lastmod, "monthly", "0.8"))
 
         # User pages (if enabled)

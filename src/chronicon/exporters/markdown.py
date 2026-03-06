@@ -3,7 +3,9 @@
 
 """Export to GitHub-flavored markdown with images and Discourse-style URLs."""
 
+import contextlib
 import math
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -1003,9 +1005,8 @@ class MarkdownGitHubExporter(BaseExporter):
         # Enhance emoji with Unicode characters before conversion
         html = self._enhance_emoji_for_markdown(html)
 
-        # Extract and handle images if asset_downloader is available
-        if self.asset_downloader:
-            html = self._handle_images(html, topic_id)
+        # Rewrite image URLs to local asset paths
+        html = self._handle_images(html, topic_id)
 
         # Convert using html2text
         markdown = self.html_converter.handle(html)
@@ -1097,63 +1098,115 @@ class MarkdownGitHubExporter(BaseExporter):
 
     def _handle_images(self, html: str, topic_id: int) -> str:
         """
-        Extract images from HTML, download them, and rewrite URLs to relative paths.
+        Rewrite image and anchor URLs to local asset paths from the DB.
+
+        Rewrites both ``<img src>`` and ``<a href>`` (lightbox links) so that
+        the resulting markdown references local files instead of remote CDNs.
 
         Args:
             html: HTML content
             topic_id: Topic ID for organizing images
 
         Returns:
-            HTML with rewritten image URLs
+            HTML with rewritten image/anchor URLs
         """
         soup = BeautifulSoup(html, "html.parser")
-        images = soup.find_all("img")
 
-        for img in images:
+        # Build lookup map from topic-specific assets
+        topic_assets: dict[str, str] = {}
+        try:
+            for asset in self.db.get_assets_for_topic(topic_id):
+                topic_assets[asset["url"]] = asset["local_path"]
+        except Exception:
+            pass
+
+        # Representative topic dir for relative path computation.
+        # Topic files live at: output_dir/t/{slug}/{id}.md
+        # We only need the correct depth (2 levels below output_dir).
+        topic_dir = (self.output_dir / "t" / "_").resolve()
+
+        # Rewrite <img src> attributes
+        for img in soup.find_all("img"):
             src = img.get("src")
-            if not src:
+            if not src or src.startswith("data:"):
                 continue
-
-            # Skip data URLs and relative URLs
-            if src.startswith("data:") or not src.startswith("http"):
+            # Normalize protocol-relative URLs
+            if src.startswith("//"):
+                src = "https:" + src
+            if not src.startswith("http"):
                 continue
+            rel = self._resolve_asset_url(src, topic_id, topic_assets, topic_dir)
+            if rel:
+                img["src"] = rel
 
-            # Download image if we have a downloader
-            if self.asset_downloader:
-                try:
-                    # Download the image using AssetDownloader
-                    # This saves to assets/images/{topic_id}/
-                    # and registers in DB
-                    local_path = self.asset_downloader.download_image(src, topic_id)
-
-                    if local_path:
-                        # Get filename from the downloaded path
-                        filename = local_path.name
-
-                        # Calculate relative path from topic file to image
-                        # Topic files are in: topics/YYYY-MM-Month/
-                        # Images are in: assets/images/topic_id/
-                        # Relative path: ../../assets/images/topic_id/filename
-                        relative_path = f"../../assets/images/{topic_id}/{filename}"
-
-                        # Update image src to use local path
-                        img["src"] = relative_path
-                    else:
-                        # Download failed, keep original URL
-                        log.debug(
-                            f"Failed to download image {src}, keeping original URL"
-                        )
-
-                except Exception as e:
-                    # If image handling fails, leave the original URL
-                    log.debug(f"Error handling image {src}: {e}")
-            else:
-                # No asset downloader available, keep original URL
-                log.debug(
-                    f"No asset downloader available, keeping original URL for {src}"
-                )
+        # Rewrite <a> href attributes that point to downloadable assets
+        for anchor in soup.find_all("a", href=True):
+            href = anchor["href"]
+            if href.startswith("//"):
+                href = "https:" + href
+            if not href.startswith("http"):
+                continue
+            rel = self._resolve_asset_url(href, topic_id, topic_assets, topic_dir)
+            if rel:
+                anchor["href"] = rel
 
         return str(soup)
+
+    def _resolve_asset_url(
+        self,
+        url: str,
+        topic_id: int,
+        topic_assets: dict[str, str],
+        topic_dir: Path,
+    ) -> str | None:
+        """
+        Resolve a remote URL to a relative local asset path.
+
+        Tries topic-scoped DB lookup, global DB lookup, then download fallback.
+
+        Returns:
+            Relative path string, or None if the asset is not available locally.
+        """
+        # 1. Topic-specific asset lookup
+        local_path_str = topic_assets.get(url)
+
+        # 2. Global asset lookup (emoji, site assets, cross-topic images)
+        if not local_path_str:
+            with contextlib.suppress(Exception):
+                local_path_str = self.db.get_asset_path(url)
+
+        # 3. Filename-based fallback within topic assets
+        #    Handles CDN hostname mismatches (e.g. S3 vs CloudFront) and
+        #    original-vs-optimized variants (base hash matches with a
+        #    resolution suffix like _2_690x351).
+        if not local_path_str:
+            filename = url.split("/")[-1].split("?")[0]
+            if filename:
+                stem = Path(filename).stem
+                for _u, path in topic_assets.items():
+                    pname = Path(path).name
+                    if pname == filename or pname.startswith(stem):
+                        local_path_str = path
+                        break
+
+        # 4. Fallback: download if asset_downloader is available
+        if not local_path_str and self.asset_downloader:
+            try:
+                downloaded = self.asset_downloader.download_image(url, topic_id)
+                if downloaded:
+                    local_path_str = str(downloaded)
+            except Exception as e:
+                log.debug(f"Error downloading image {url}: {e}")
+
+        if not local_path_str:
+            return None
+
+        asset_path = Path(local_path_str).resolve()
+        if asset_path.exists():
+            return os.path.relpath(asset_path, topic_dir)
+
+        log.debug(f"Asset file not found: {local_path_str}")
+        return None
 
     def export_users_by_username(self, usernames: set[str]) -> None:
         """
