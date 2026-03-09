@@ -3,7 +3,7 @@
 # Security: Hardened, minimal attack surface, non-root user
 
 # Stage 1: Builder stage
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir beautifulsoup4 html2text jinja2 rich
 
 # Stage 2: Runtime stage (minimal)
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # Install only runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
