@@ -3,7 +3,7 @@
 # Security: Hardened, minimal attack surface, non-root user
 
 # Stage 1: Builder stage
-FROM python:3.12-alpine3.20 AS builder
+FROM python:3.13-alpine3.20 AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir beautifulsoup4 html2text jinja2 rich
 
 # Stage 2: Runtime stage (minimal)
-FROM python:3.12-alpine3.20
+FROM python:3.13-alpine3.20
 
 # Install only runtime dependencies
 RUN apk add --no-cache \
