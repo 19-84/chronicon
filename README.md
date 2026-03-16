@@ -5,6 +5,8 @@ A powerful, multi-format archiver for Discourse forums.
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://unlicense.org/)
 [![Tests](https://github.com/19-84/chronicon/actions/workflows/test.yml/badge.svg)](https://github.com/19-84/chronicon/actions/workflows/test.yml)
+[![Codeberg Mirror](https://img.shields.io/badge/mirror-Codeberg-2185D0.svg?logo=codeberg)](https://codeberg.org/19-84/chronicon)
+[![GitGud Mirror](https://img.shields.io/badge/mirror-GitGud-FC6D26.svg?logo=gitlab)](https://gitgud.io/1984/chronicon)
 
 **[Live Demo](https://online-archives.github.io/chronicon-archive-example/)** — a static archive of Discourse Meta's Theme category ([source](https://github.com/online-archives/chronicon-archive-example))
 
