@@ -13,11 +13,10 @@ This directory contains a systemd service file for running Chronicon watch mode 
 
 2. **Install Chronicon**:
    ```bash
-   # Using uv
-   uv tool install chronicon
-
-   # Or using pip
-   pip install chronicon
+   # Clone and install
+   git clone https://github.com/19-84/chronicon.git
+   cd chronicon
+   pip install .
    ```
 
 3. **Create initial archive**:

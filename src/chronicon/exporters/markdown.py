@@ -60,12 +60,12 @@ class MarkdownGitHubExporter(BaseExporter):
 
     def export(self) -> None:
         """Main export method."""
-        # Get all topics
-        topics = self.db.get_all_topics()
+        # Count topics without loading them all into memory
+        topic_count = self.db.get_topics_count()
 
         # Calculate total work items: homepage + indexes + topics + users + README
         total_items = (
-            len(topics) + 6
+            topic_count + 6
         )  # topics + homepage + latest + top + categories + README + metadata
         if self.include_users:
             total_items += self.db.get_users_count() + 1  # users + user index
@@ -93,8 +93,8 @@ class MarkdownGitHubExporter(BaseExporter):
         if self.progress:
             self.progress.advance(task, 1)
 
-        # Export each topic
-        for _i, topic in enumerate(topics, 1):
+        # Export each topic using batched iteration
+        for topic in self.db.iter_topics_batched():
             self.export_topic(topic)
             if self.progress:
                 self.progress.advance(task, 1)
@@ -113,7 +113,7 @@ class MarkdownGitHubExporter(BaseExporter):
             self.progress.advance(task, 1)
 
         if self.progress:
-            desc = f"[green]✓ GitHub Markdown export complete ({len(topics)} topics"
+            desc = f"[green]✓ GitHub Markdown export complete ({topic_count} topics"
             if self.include_users:
                 desc += f", {self.db.get_users_count()} users"
             desc += ")"

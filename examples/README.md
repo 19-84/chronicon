@@ -15,7 +15,7 @@ chronicon archive \
   --urls https://meta.discourse.org \
   --categories 61 \
   --output-dir ./my-archive \
-  --formats html,markdown-github \
+  --formats html,md \
   --search-backend static
 
 # Export with canonical URLs for GitHub Pages

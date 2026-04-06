@@ -1005,11 +1005,10 @@ class HTMLStaticExporter(BaseExporter):
     def generate_topics(self) -> None:
         """Generate topic pages with pagination support."""
 
-        topics = self.db.get_all_topics()
         template = self.env.get_template("topic.html")
         total_pages_generated = 0
 
-        for topic in topics:
+        for topic in self.db.iter_topics_batched():
             if self.pagination_enabled:
                 # Get post count for pagination
                 post_count = self.db.get_topic_posts_count(topic.id)
@@ -1052,16 +1051,10 @@ class HTMLStaticExporter(BaseExporter):
                     if topic.category_id:
                         category = self.db.get_category(topic.category_id)
 
-                    # Generate SEO context (use all posts for SEO on first page)
-                    if page_num == 1:
-                        all_posts = self.db.get_topic_posts(topic.id)
-                        seo_context = self._generate_topic_seo_context(
-                            topic, all_posts, category
-                        )
-                    else:
-                        seo_context = self._generate_topic_seo_context(
-                            topic, posts, category
-                        )
+                    # Generate SEO context from current page's posts
+                    seo_context = self._generate_topic_seo_context(
+                        topic, posts, category
+                    )
 
                     # Generate the page
                     self._generate_topic_page(
@@ -1423,16 +1416,10 @@ class HTMLStaticExporter(BaseExporter):
                         category = self.db.get_category(topic.category_id)
                         affected_categories.add(topic.category_id)
 
-                    # Generate SEO context (use all posts for SEO on first page)
-                    if page_num == 1:
-                        all_posts = self.db.get_topic_posts(topic.id)
-                        seo_context = self._generate_topic_seo_context(
-                            topic, all_posts, category
-                        )
-                    else:
-                        seo_context = self._generate_topic_seo_context(
-                            topic, posts, category
-                        )
+                    # Generate SEO context from current page's posts
+                    seo_context = self._generate_topic_seo_context(
+                        topic, posts, category
+                    )
 
                     # Generate the page
                     path = self._generate_topic_page(
@@ -1753,91 +1740,94 @@ class HTMLStaticExporter(BaseExporter):
             return
 
         base = self.canonical_base_url.rstrip("/")
-        urls: list[tuple[str, str | None, str, str]] = []
+        sitemap_path = self.output_dir / "sitemap.xml"
+        url_count = 0
 
-        # Homepage
-        urls.append((f"{base}/", None, "weekly", "1.0"))
+        def write_url(f, loc, lastmod, changefreq, priority):
+            nonlocal url_count
+            f.write("  <url>\n")
+            f.write(f"    <loc>{loc}</loc>\n")
+            if lastmod:
+                f.write(f"    <lastmod>{lastmod}</lastmod>\n")
+            f.write(f"    <changefreq>{changefreq}</changefreq>\n")
+            f.write(f"    <priority>{priority}</priority>\n")
+            f.write("  </url>\n")
+            url_count += 1
 
-        # Latest index pages
-        total_topics = self.db.get_topics_count()
-        total_latest_pages = (
-            math.ceil(total_topics / TOPICS_PER_INDEX_PAGE) if total_topics > 0 else 1
-        )
-        for p in range(1, total_latest_pages + 1):
-            page_file = "index.html" if p == 1 else f"page-{p}.html"
-            urls.append((f"{base}/latest/{page_file}", None, "daily", "0.7"))
+        with open(sitemap_path, "w", encoding="utf-8") as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+            f.write('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
 
-        # Top indexes
-        urls.append((f"{base}/top/index.html", None, "weekly", "0.5"))
-        for sub in ["replies", "views"]:
-            for p in range(1, total_latest_pages + 1):
-                page_file = "index.html" if p == 1 else f"page-{p}.html"
-                urls.append((f"{base}/top/{sub}/{page_file}", None, "weekly", "0.5"))
+            # Homepage
+            write_url(f, f"{base}/", None, "weekly", "1.0")
 
-        # Category pages
-        categories = self.db.get_all_categories()
-        for cat in categories:
-            cat_pages = (
-                math.ceil(cat.topic_count / TOPICS_PER_CATEGORY_PAGE)
-                if cat.topic_count > 0
+            # Latest index pages
+            total_topics = self.db.get_topics_count()
+            total_latest_pages = (
+                math.ceil(total_topics / TOPICS_PER_INDEX_PAGE)
+                if total_topics > 0
                 else 1
             )
-            for p in range(1, cat_pages + 1):
+            for p in range(1, total_latest_pages + 1):
                 page_file = "index.html" if p == 1 else f"page-{p}.html"
-                urls.append(
-                    (
+                write_url(f, f"{base}/latest/{page_file}", None, "daily", "0.7")
+
+            # Top indexes
+            write_url(f, f"{base}/top/index.html", None, "weekly", "0.5")
+            for sub in ["replies", "views"]:
+                for p in range(1, total_latest_pages + 1):
+                    page_file = "index.html" if p == 1 else f"page-{p}.html"
+                    write_url(f, f"{base}/top/{sub}/{page_file}", None, "weekly", "0.5")
+
+            # Category pages
+            categories = self.db.get_all_categories()
+            for cat in categories:
+                cat_pages = (
+                    math.ceil(cat.topic_count / TOPICS_PER_CATEGORY_PAGE)
+                    if cat.topic_count > 0
+                    else 1
+                )
+                for p in range(1, cat_pages + 1):
+                    page_file = "index.html" if p == 1 else f"page-{p}.html"
+                    write_url(
+                        f,
                         f"{base}/c/{cat.slug}/{cat.id}/{page_file}",
                         None,
                         "weekly",
                         "0.6",
                     )
+
+            # Topic pages — iterate in batches to avoid loading all into memory
+            for topic in self.db.iter_topics_batched():
+                lastmod = None
+                lastmod_dt = topic.last_posted_at or topic.created_at
+                if lastmod_dt:
+                    lastmod = lastmod_dt.strftime("%Y-%m-%d")
+                topic_pages = (
+                    math.ceil(topic.posts_count / self.posts_per_page)
+                    if topic.posts_count > 0
+                    else 1
                 )
+                for p in range(1, topic_pages + 1):
+                    if p == 1:
+                        loc = f"{base}/t/{topic.slug}/{topic.id}"
+                    else:
+                        loc = f"{base}/t/{topic.slug}/{topic.id}/page-{p}.html"
+                    write_url(f, loc, lastmod, "monthly", "0.8")
 
-        # Topic pages
-        topics = self.db.get_all_topics()
-        for topic in topics:
-            lastmod = None
-            lastmod_dt = topic.last_posted_at or topic.created_at
-            if lastmod_dt:
-                lastmod = lastmod_dt.strftime("%Y-%m-%d")
-            topic_pages = (
-                math.ceil(topic.posts_count / self.posts_per_page)
-                if topic.posts_count > 0
-                else 1
-            )
-            for p in range(1, topic_pages + 1):
-                if p == 1:
-                    loc = f"{base}/t/{topic.slug}/{topic.id}"
-                else:
-                    loc = f"{base}/t/{topic.slug}/{topic.id}/page-{p}.html"
-                urls.append((loc, lastmod, "monthly", "0.8"))
+            # User pages (if enabled)
+            if self.include_users:
+                users = self.db.get_all_users()
+                for user in users:
+                    write_url(f, f"{base}/u/{user.username}", None, "monthly", "0.3")
 
-        # User pages (if enabled)
-        if self.include_users:
-            users = self.db.get_all_users()
-            for user in users:
-                urls.append((f"{base}/u/{user.username}", None, "monthly", "0.3"))
+            # Search page (if static mode)
+            if self.search_backend == "static":
+                write_url(f, f"{base}/search.html", None, "monthly", "0.4")
 
-        # Search page (if static mode)
-        if self.search_backend == "static":
-            urls.append((f"{base}/search.html", None, "monthly", "0.4"))
+            f.write("</urlset>\n")
 
-        # Build XML
-        lines = ['<?xml version="1.0" encoding="UTF-8"?>']
-        lines.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
-        for loc, lastmod, changefreq, priority in urls:
-            lines.append("  <url>")
-            lines.append(f"    <loc>{loc}</loc>")
-            if lastmod:
-                lines.append(f"    <lastmod>{lastmod}</lastmod>")
-            lines.append(f"    <changefreq>{changefreq}</changefreq>")
-            lines.append(f"    <priority>{priority}</priority>")
-            lines.append("  </url>")
-        lines.append("</urlset>")
-
-        sitemap_path = self.output_dir / "sitemap.xml"
-        sitemap_path.write_text("\n".join(lines), encoding="utf-8")
-        log.info(f"Generated sitemap.xml with {len(urls)} URLs")
+        log.info(f"Generated sitemap.xml with {url_count} URLs")
 
     def generate_robots_txt(self) -> None:
         """Generate robots.txt for crawler guidance."""

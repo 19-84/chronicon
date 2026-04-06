@@ -71,49 +71,29 @@ class TestSiteAssetDownloads:
     def test_download_site_assets_without_metadata(
         self, mock_client, mock_db, temp_dir
     ):
-        """Test that generic site assets are downloaded without metadata."""
+        """Without metadata, no downloads are attempted."""
         downloader = AssetDownloader(mock_client, mock_db, temp_dir)
 
         with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_response = MagicMock()
-            mock_response.read.return_value = b"fake_image_data"
-            mock_response.headers.get = Mock(
-                side_effect=lambda key, default=None: {"Content-Type": "image/png"}.get(
-                    key, default
-                )
-            )
-            mock_response.__enter__.return_value = mock_response
-            mock_urlopen.return_value = mock_response
-
             downloader.download_site_assets()
 
-        # Should have tried to download generic assets (favicon, logo.png)
-        assert mock_urlopen.call_count >= 1
+        # No metadata means no URLs to download
+        assert mock_urlopen.call_count == 0
 
     def test_download_site_assets_handles_missing_metadata(
         self, mock_client, mock_db, temp_dir
     ):
-        """Test that download handles missing logo/banner in metadata."""
+        """Empty/None metadata URLs result in no download attempts."""
         downloader = AssetDownloader(mock_client, mock_db, temp_dir)
 
         site_metadata = {"logo_url": None, "banner_image_url": ""}
 
         with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_response = MagicMock()
-            mock_response.read.return_value = b"fake_image_data"
-            mock_response.headers.get = Mock(
-                side_effect=lambda key, default=None: {"Content-Type": "image/png"}.get(
-                    key, default
-                )
-            )
-            mock_response.__enter__.return_value = mock_response
-            mock_urlopen.return_value = mock_response
-
             # Should not raise exception
             downloader.download_site_assets(site_metadata=site_metadata)
 
-        # Should only have tried generic assets, not metadata assets
-        assert mock_urlopen.call_count >= 1
+        # None and empty string URLs should be skipped
+        assert mock_urlopen.call_count == 0
 
 
 class TestAvatarDownloads:

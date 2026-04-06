@@ -238,21 +238,9 @@ class AssetDownloader:
         if self.text_only:
             return
 
-        # Common site assets (fallback generic paths)
-        assets = [
-            "/images/favicon.ico",
-            "/images/logo.png",
-        ]
-
         from contextlib import suppress
 
-        for asset_path in assets:
-            url = f"{self.client.base_url}{asset_path}"
-            with suppress(Exception):
-                # Don't print, let callback handle it
-                self._download_file(url, self.site_dir, callback=callback)
-
-        # Download metadata-specified assets (actual site logo, favicon, and banner)
+        # Download assets from site metadata (logo, favicon, banner)
         if site_metadata:
             # Download site logo if available
             logo_url = site_metadata.get("logo_url")
@@ -425,8 +413,15 @@ class AssetDownloader:
 
         try:
             # Make URL absolute if needed
-            if url.startswith("/"):
+            if url.startswith("//"):
+                # Protocol-relative URL — add https:
+                url = f"https:{url}"
+            elif url.startswith("/"):
+                # Absolute path — prepend base URL
                 url = f"{self.client.base_url}{url}"
+            elif not url.startswith(("http://", "https://")):
+                # Relative path — prepend base URL with slash
+                url = f"{self.client.base_url}/{url}"
 
             # Extract and sanitize filename from URL
             parsed = urllib.parse.urlparse(url)
@@ -459,6 +454,16 @@ class AssetDownloader:
                 filename = "asset"  # Fallback to generic name
 
             local_path = target_dir / filename
+
+            # Handle filename collisions: if file exists but belongs to a
+            # different URL, add a hash suffix to avoid overwriting
+            if local_path.exists() and not self.db.get_asset_path(url):
+                import hashlib
+
+                url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+                stem = local_path.stem
+                suffix = local_path.suffix
+                local_path = target_dir / f"{stem}_{url_hash}{suffix}"
 
             # CDN requests get longer timeout and more retries
             is_cdn = "cdn" in url or "cloudfront" in url
@@ -523,8 +528,17 @@ class AssetDownloader:
                         continue
                     raise
 
-        except Exception:
+        except urllib.error.HTTPError as e:
             self.stats["failed"] += 1
+            log.warning(f"Asset download failed (HTTP {e.code}): {url}")
+
+            if callback:
+                callback(url, success=False, cached=False, bytes_downloaded=0)
+
+            return None
+        except Exception as e:
+            self.stats["failed"] += 1
+            log.warning(f"Asset download failed ({type(e).__name__}): {url}")
 
             if callback:
                 callback(url, success=False, cached=False, bytes_downloaded=0)

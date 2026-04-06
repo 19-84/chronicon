@@ -22,21 +22,6 @@ text_only = false
 # Leave commented out for offline-only archives
 # canonical_base_url = "https://example.github.io/forum-archive"
 
-[export.html]
-theme_adaptation = "simplified"  # simplified, full, minimal
-enable_search = true
-responsive = true
-
-[export.markdown]
-convert_html = true
-preserve_formatting = true
-include_metadata_header = true
-
-[export.github]
-generate_readme = true
-relative_image_paths = true
-gfm_syntax = true
-
 # Continuous mode settings
 [continuous]
 polling_interval_minutes = 10

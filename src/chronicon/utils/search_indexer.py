@@ -26,90 +26,78 @@ class SearchIndexer:
         """
         Generate search index JSON file.
 
+        Streams items to disk in batches to avoid loading all topics/posts
+        into memory at once.
+
         Args:
             output_path: Path to output search_index.json
         """
-        # Placeholder implementation - will be implemented in Phase 3
-        index = {
-            "version": "1.0",
-            "generated_at": datetime.now().isoformat(),
-            "items": self._build_index_items(),
-        }
-
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(index, f, indent=2)
-
-    def _build_index_items(self) -> list[dict]:
-        """
-        Build list of searchable items.
-
-        Returns:
-            List of index items
-        """
         from bs4 import BeautifulSoup
 
-        items = []
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write('{"version":"1.0",')
+            f.write(f'"generated_at":"{datetime.now().isoformat()}",')
+            f.write('"items":[')
 
-        # Index all topics
-        topics = self.db.get_all_topics()
-        for topic in topics:
-            # Get first post for excerpt
-            posts = self.db.get_topic_posts(topic.id)
-            excerpt = ""
-            if posts:
-                # Strip HTML from first post
-                soup = BeautifulSoup(posts[0].cooked, "html.parser")
-                content = soup.get_text()
-                excerpt = self.extract_excerpt(content)
+            first_item = True
+            category_cache: dict[int, str] = {}
 
-            # Get category name if available
-            category_name = ""
-            if topic.category_id:
-                category = self.db.get_category(topic.category_id)
-                if category:
-                    category_name = category.name
+            for topic in self.db.iter_topics_batched(batch_size=500):
+                # Cache category lookups
+                category_name = ""
+                if topic.category_id:
+                    if topic.category_id not in category_cache:
+                        cat = self.db.get_category(topic.category_id)
+                        category_cache[topic.category_id] = cat.name if cat else ""
+                    category_name = category_cache[topic.category_id]
 
-            # Generate topic URL (matches HTML export structure: t/{slug}/{id}/)
-            topic_url = f"t/{topic.slug}/{topic.id}/"
+                # Get posts for this topic in one query
+                posts = self.db.get_topic_posts(topic.id)
 
-            items.append(
-                {
+                # Index the topic itself (from first post)
+                excerpt = ""
+                author = "unknown"
+                if posts:
+                    soup = BeautifulSoup(posts[0].cooked, "html.parser")
+                    excerpt = self.extract_excerpt(soup.get_text())
+                    author = posts[0].username
+
+                topic_url = f"t/{topic.slug}/{topic.id}/"
+
+                item = {
                     "type": "topic",
                     "id": topic.id,
                     "title": topic.title,
                     "url": topic_url,
                     "excerpt": excerpt,
                     "category": category_name,
-                    "author": posts[0].username if posts else "unknown",
+                    "author": author,
                     "created_at": topic.created_at.strftime("%Y-%m-%d"),
                 }
-            )
 
-        # Index all posts (except first post which is already in topic)
-        all_topics = self.db.get_all_topics()
-        for topic in all_topics:
-            posts = self.db.get_topic_posts(topic.id)
-            for idx, post in enumerate(posts):
-                if idx == 0:
-                    continue  # Skip first post (already indexed as topic)
+                if not first_item:
+                    f.write(",")
+                json.dump(item, f, separators=(",", ":"))
+                first_item = False
 
-                # Strip HTML
-                soup = BeautifulSoup(post.cooked, "html.parser")
-                content = soup.get_text()
-                excerpt = self.extract_excerpt(content)
+                # Index remaining posts (skip first — already indexed as topic)
+                for idx, post in enumerate(posts):
+                    if idx == 0:
+                        continue
 
-                # Compute which page this post is on
-                page_num = (idx // self.posts_per_page) + 1
-                if page_num == 1:
-                    post_url = f"t/{topic.slug}/{topic.id}/#post-{post.post_number}"
-                else:
-                    post_url = (
-                        f"t/{topic.slug}/{topic.id}/"
-                        f"page-{page_num}.html#post-{post.post_number}"
-                    )
+                    soup = BeautifulSoup(post.cooked, "html.parser")
+                    excerpt = self.extract_excerpt(soup.get_text())
 
-                items.append(
-                    {
+                    page_num = (idx // self.posts_per_page) + 1
+                    if page_num == 1:
+                        post_url = f"t/{topic.slug}/{topic.id}/#post-{post.post_number}"
+                    else:
+                        post_url = (
+                            f"t/{topic.slug}/{topic.id}/"
+                            f"page-{page_num}.html#post-{post.post_number}"
+                        )
+
+                    item = {
                         "type": "post",
                         "id": post.id,
                         "topic_id": topic.id,
@@ -119,9 +107,11 @@ class SearchIndexer:
                         "author": post.username,
                         "created_at": post.created_at.strftime("%Y-%m-%d"),
                     }
-                )
 
-        return items
+                    f.write(",")
+                    json.dump(item, f, separators=(",", ":"))
+
+            f.write("]}")
 
     def extract_excerpt(self, content: str, max_length: int = 200) -> str:
         """

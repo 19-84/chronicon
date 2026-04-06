@@ -17,13 +17,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy only requirements first for caching
+# Copy project files for install
 WORKDIR /build
 COPY pyproject.toml ./
+COPY src/ ./src/
 
-# Install dependencies only (not the package itself)
+# Install package with all dependencies
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir beautifulsoup4 html2text jinja2 rich
+    pip install --no-cache-dir .
 
 # Stage 2: Runtime stage (minimal)
 FROM python:3.12-slim
@@ -67,7 +68,7 @@ RUN chmod -R go-w /app 2>/dev/null || true
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD chronicon validate --output-dir /archives || exit 1
+    CMD python -m chronicon.cli validate --output-dir /archives || exit 1
 
 # Labels for metadata
 LABEL maintainer="Chronicon" \

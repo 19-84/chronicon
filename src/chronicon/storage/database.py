@@ -1167,7 +1167,8 @@ class ArchiveDatabase(ArchiveDatabaseBase):
         Get all assets downloaded for a specific topic.
 
         Assets are organized in directories by topic_id, so this matches
-        any asset whose local_path contains /images/{topic_id}/.
+        any asset whose local_path contains /images/{topic_id}/ or
+        \\images\\{topic_id}\\ (Windows).
 
         Args:
             topic_id: Topic ID
@@ -1176,9 +1177,11 @@ class ArchiveDatabase(ArchiveDatabaseBase):
             List of asset dictionaries
         """
         cursor = self.connection.cursor()
+        # Match both forward and backslash path separators for cross-platform
         cursor.execute(
-            "SELECT * FROM assets WHERE local_path LIKE ? ORDER BY url",
-            (f"%/images/{topic_id}/%",),
+            "SELECT * FROM assets WHERE "
+            "(local_path LIKE ? OR local_path LIKE ?) ORDER BY url",
+            (f"%/images/{topic_id}/%", f"%\\images\\{topic_id}\\%"),
         )
         return [dict(row) for row in cursor.fetchall()]
 

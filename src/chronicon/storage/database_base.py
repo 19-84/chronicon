@@ -4,6 +4,7 @@
 """Abstract database interface for archive storage."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from datetime import datetime
 
 from ..models.category import Category
@@ -214,6 +215,16 @@ class ArchiveDatabaseBase(ABC):
     ) -> list[Topic]:
         """Get a paginated list of topics with flexible sorting."""
         pass
+
+    def iter_topics_batched(self, batch_size: int = 500) -> Iterator[Topic]:
+        """Yield all topics in batches to avoid loading everything into memory."""
+        page = 1
+        while True:
+            batch = self.get_topics_paginated(page, batch_size)
+            if not batch:
+                break
+            yield from batch
+            page += 1
 
     @abstractmethod
     def get_category_topics_paginated(

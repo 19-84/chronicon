@@ -102,7 +102,7 @@ To enable git auto-commit and push:
    git init
    git add .
    git commit -m "Initial commit"
-   git remote add origin git@github.com:your-org/your-repo.git
+   git remote add origin git@github.com:username/archive-repo.git
    ```
 
 2. **Mount SSH key** (for push to remote):

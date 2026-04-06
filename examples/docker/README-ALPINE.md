@@ -461,12 +461,12 @@ docker-compose -f docker-compose.prod.yml up -d
 - Watch Mode: `../../WATCH_MODE.md`
 
 ### Issues
-Report security issues privately to: security@example.com
-Report bugs: https://github.com/your-org/chronicon/issues
+Report security issues privately: https://github.com/19-84/chronicon/security/advisories
+Report bugs: https://github.com/19-84/chronicon/issues
 
 ### Community
-- Discussions: https://github.com/your-org/chronicon/discussions
-- Discord: https://discord.gg/chronicon (if available)
+- Discussions: https://github.com/19-84/chronicon/discussions
+- Issues: https://github.com/19-84/chronicon/issues
 
 ## License
 

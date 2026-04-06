@@ -181,6 +181,71 @@ class TestAssetDownloader:
         called_url = mock_urlopen.call_args[0][0].full_url
         assert called_url.startswith("https://meta.discourse.org")
 
+    def test_protocol_relative_urls_not_doubled(self, mock_client, mock_db, temp_dir):
+        """Protocol-relative URLs (//domain/path) don't get base URL prepended."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"image_data"
+            mock_response.headers.get = Mock(
+                side_effect=lambda key, default=None: {"Content-Type": "image/png"}.get(
+                    key, default
+                )
+            )
+            mock_response.__enter__.return_value = mock_response
+            mock_urlopen.return_value = mock_response
+
+            downloader.download_image(
+                "//meta.discourse.org/uploads/image.png", topic_id=1
+            )
+
+        called_url = mock_urlopen.call_args[0][0].full_url
+        assert called_url == "https://meta.discourse.org/uploads/image.png"
+        assert "//" not in called_url.split("://", 1)[1]  # No double slashes in path
+
+    def test_absolute_urls_not_modified(self, mock_client, mock_db, temp_dir):
+        """Fully absolute URLs are not modified."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"image_data"
+            mock_response.headers.get = Mock(
+                side_effect=lambda key, default=None: {"Content-Type": "image/png"}.get(
+                    key, default
+                )
+            )
+            mock_response.__enter__.return_value = mock_response
+            mock_urlopen.return_value = mock_response
+
+            downloader.download_image(
+                "https://cdn.example.com/uploads/image.png", topic_id=1
+            )
+
+        called_url = mock_urlopen.call_args[0][0].full_url
+        assert called_url == "https://cdn.example.com/uploads/image.png"
+
+    def test_bare_relative_urls_get_base(self, mock_client, mock_db, temp_dir):
+        """Bare relative paths (no leading /) get base URL prepended."""
+        downloader = AssetDownloader(mock_client, mock_db, temp_dir)
+
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"image_data"
+            mock_response.headers.get = Mock(
+                side_effect=lambda key, default=None: {"Content-Type": "image/png"}.get(
+                    key, default
+                )
+            )
+            mock_response.__enter__.return_value = mock_response
+            mock_urlopen.return_value = mock_response
+
+            downloader.download_image("uploads/image.png", topic_id=1)
+
+        called_url = mock_urlopen.call_args[0][0].full_url
+        assert called_url == "https://meta.discourse.org/uploads/image.png"
+
     def test_download_failure_returns_none(self, mock_client, mock_db, temp_dir):
         """Test that download failures return None gracefully."""
         downloader = AssetDownloader(mock_client, mock_db, temp_dir)

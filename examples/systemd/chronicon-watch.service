@@ -1,7 +1,7 @@
 [Unit]
 Description=Chronicon Watch Daemon - Continuous Discourse Archive Updates
 After=network.target
-Documentation=https://github.com/your-org/chronicon
+Documentation=https://github.com/19-84/chronicon
 
 [Service]
 Type=simple

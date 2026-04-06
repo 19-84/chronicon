@@ -91,6 +91,29 @@ def main() -> None:
         default="fts",
         help="Search backend: 'static' (offline) or 'fts' (server). Default: fts",
     )
+    archive_parser.add_argument(
+        "--base-url",
+        default=None,
+        help="Canonical base URL for SEO/sitemaps (e.g. https://user.github.io/archive)",
+    )
+    archive_parser.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        help="Request timeout in seconds (default: from config or 15)",
+    )
+    archive_parser.add_argument(
+        "--retry-max",
+        type=int,
+        default=None,
+        help="Maximum retry attempts (default: from config or 5)",
+    )
+    archive_parser.add_argument(
+        "--posts-per-page",
+        type=int,
+        default=None,
+        help="Posts per page in exports (default: from config or 50)",
+    )
 
     # Update command
     update_parser = subparsers.add_parser("update", help="Update existing archive(s)")
@@ -230,6 +253,17 @@ def main() -> None:
         default="fts",
         help="Search backend: 'static' (offline) or 'fts' (server). Default: fts",
     )
+    export_parser.add_argument(
+        "--base-url",
+        default=None,
+        help="Canonical base URL for SEO/sitemaps (e.g. https://user.github.io/archive)",
+    )
+    export_parser.add_argument(
+        "--posts-per-page",
+        type=int,
+        default=None,
+        help="Posts per page in exports (default: from config or 50)",
+    )
 
     # Global options
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
@@ -307,6 +341,16 @@ def run_archive(args: argparse.Namespace, config: Config) -> int | None:
                 "[red]Error: --categories must be comma-separated integers[/red]"
             )
             return
+
+    # Apply CLI overrides to config
+    if args.base_url is not None:
+        config.canonical_base_url = args.base_url
+    if args.timeout is not None:
+        config.timeout = args.timeout
+    if args.retry_max is not None:
+        config.retry_max = args.retry_max
+    if args.posts_per_page is not None:
+        config.posts_per_page = args.posts_per_page
 
     # Archive each site
     for site_url in sites:
@@ -413,7 +457,12 @@ def _archive_site(
             log.info(f"Using category filter from config: {category_ids}")
 
     # Initialize API client
-    client = DiscourseAPIClient(site_url, rate_limit=rate_limit)
+    client = DiscourseAPIClient(
+        site_url,
+        rate_limit=rate_limit,
+        timeout=config.timeout,
+        max_retries=config.retry_max,
+    )
 
     # Initialize fetchers
     category_fetcher = CategoryFetcher(client, db)  # type: ignore[arg-type]
@@ -799,6 +848,29 @@ def _archive_site(
             topic_image_urls: dict[int, list[str]] = {}
             all_emoji_urls: list[str] = []
 
+            # Build domain filter: only download from the forum itself
+            # or relative paths (which resolve to the forum)
+            from urllib.parse import urlparse
+
+            site_domain = urlparse(site_url).netloc
+
+            def is_forum_url(url: str) -> bool:
+                """Check if URL is from the forum or a relative path."""
+                if not url or url.startswith("data:"):
+                    return False
+                if url.startswith("/") or not url.startswith("http"):
+                    return True  # Relative path — resolves to forum
+                parsed = urlparse(url)
+                host = parsed.netloc
+                # Same domain, or common CDN patterns for this forum
+                return (
+                    host == site_domain
+                    or host.endswith(f".{site_domain}")
+                    or "discourse-cdn.com" in host
+                    or "discourse.org" in host
+                    or "uploads" in parsed.path
+                )
+
             for topic in all_topics:
                 urls_for_topic: list[str] = []
                 posts = db.get_topic_posts(topic.id)
@@ -809,7 +881,7 @@ def _archive_site(
                             for _base_id, img_set in image_sets.items():
                                 # Download all srcset variants
                                 for url in img_set.get("all_urls", []):
-                                    if url and url not in [None, ""]:
+                                    if url and url not in [None, ""] and is_forum_url(url):
                                         urls_for_topic.append(url)
 
                             lightbox_urls = html_processor.extract_lightbox_urls(
@@ -2266,6 +2338,15 @@ def run_export(args: argparse.Namespace, config: Config) -> None:
     from chronicon.utils.progress import CompactTimeElapsedColumn
 
     console.print("[bold blue]Exporting from existing archive...[/bold blue]")
+
+    # Apply CLI overrides to config (use sentinel to detect real argparse attrs)
+    _unset = object()
+    base_url = getattr(args, "base_url", _unset)
+    if base_url is not _unset and isinstance(base_url, str):
+        config.canonical_base_url = base_url
+    posts_per_page = getattr(args, "posts_per_page", _unset)
+    if posts_per_page is not _unset and isinstance(posts_per_page, int):
+        config.posts_per_page = posts_per_page
 
     output_dir = Path(args.output_dir)
 

@@ -426,3 +426,73 @@ def test_category_filter_multiple_sites(tmp_path):
     assert db.get_category_filter(site2) == [4, 5]  # Unchanged
 
     db.close()
+
+
+def test_iter_topics_batched(tmp_path):
+    """Test batched topic iteration yields all topics without loading all at once."""
+    db_path = tmp_path / "test.db"
+    db = ArchiveDatabase(db_path)
+
+    # Insert 10 topics
+    for i in range(1, 11):
+        topic = Topic(
+            id=i,
+            title=f"Topic {i}",
+            slug=f"topic-{i}",
+            category_id=1,
+            user_id=1,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            posts_count=1,
+            views=1,
+        )
+        db.insert_topic(topic)
+
+    # Iterate with small batch size
+    collected = list(db.iter_topics_batched(batch_size=3))
+
+    assert len(collected) == 10
+    # All topic IDs should be present
+    ids = {t.id for t in collected}
+    assert ids == set(range(1, 11))
+
+    db.close()
+
+
+def test_iter_topics_batched_empty(tmp_path):
+    """Batched iteration on empty database yields nothing."""
+    db_path = tmp_path / "test.db"
+    db = ArchiveDatabase(db_path)
+
+    collected = list(db.iter_topics_batched())
+    assert collected == []
+
+    db.close()
+
+
+def test_get_assets_for_topic_cross_platform(tmp_path):
+    """get_assets_for_topic matches both forward and backslash paths."""
+    db_path = tmp_path / "test.db"
+    db = ArchiveDatabase(db_path)
+
+    # Register asset with forward-slash path
+    db.register_asset(
+        "https://example.com/img1.png",
+        "/archives/assets/images/42/img1.png",
+        "image/png",
+    )
+
+    # Register asset with backslash path (Windows)
+    db.register_asset(
+        "https://example.com/img2.png",
+        "C:\\archives\\assets\\images\\42\\img2.png",
+        "image/png",
+    )
+
+    assets = db.get_assets_for_topic(42)
+    assert len(assets) == 2
+    urls = {a["url"] for a in assets}
+    assert "https://example.com/img1.png" in urls
+    assert "https://example.com/img2.png" in urls
+
+    db.close()

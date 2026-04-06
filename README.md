@@ -32,17 +32,18 @@ If you find this useful, consider giving it a star on GitHub — it helps others
 ## Installation
 
 ```bash
-# Using uv (recommended)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install chronicon
+# Clone and install with uv (recommended)
+git clone https://github.com/19-84/chronicon.git
+cd chronicon
+uv sync --all-extras
 
-# Or with pip
-pip install chronicon
+# Or install with pip from source
+git clone https://github.com/19-84/chronicon.git
+cd chronicon
+pip install .
 
 # With PostgreSQL support (optional)
-pip install chronicon[postgres]
-# or
-uv tool install chronicon[postgres]
+pip install ".[postgres]"
 ```
 
 ## Quick Start

@@ -813,18 +813,16 @@ export PROMPT_COMMAND='history -a; echo "$(date +"%Y-%m-%d %H:%M:%S") $(whoami) 
 ### Security Issues
 
 **Report security vulnerabilities:**
-- Email: security@example.com (private)
-- PGP Key: [link to public key]
+- Open a private security advisory: https://github.com/19-84/chronicon/security/advisories
 - Response time: 24 hours
 
-**DO NOT** report security issues publicly on GitHub.
+**DO NOT** report security issues publicly on GitHub Issues.
 
 ### Security Questions
 
 For security-related questions:
 - Documentation: This guide
-- Community: GitHub Discussions (for non-sensitive topics)
-- Professional: security@example.com
+- Issues: https://github.com/19-84/chronicon/issues (for non-sensitive topics)
 
 ## Changelog
 

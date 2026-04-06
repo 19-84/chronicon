@@ -2,8 +2,6 @@
 # Use this for production deployments with full security hardening
 # Features: Watch mode only, secrets management, monitoring, auto-restart
 
-version: '3.8'
-
 services:
   chronicon-watch:
     build:
@@ -87,9 +85,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-
-    # Restart policy
-    restart: unless-stopped
 
     # Networks
     networks:

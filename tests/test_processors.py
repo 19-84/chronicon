@@ -56,6 +56,38 @@ class TestHTMLProcessor:
 
         assert images == []
 
+    def test_extract_images_data_src(self):
+        """Test extracting lazy-loaded images with data-src attribute."""
+        html = """
+        <img class="lazyload" data-src="/uploads/original/1X/abc.png"
+             src="/images/placeholder.gif" alt="Lazy">
+        """
+
+        processor = HTMLProcessor()
+        images = processor.extract_images(html)
+
+        assert "/images/placeholder.gif" in images
+        assert "/uploads/original/1X/abc.png" in images
+
+    def test_extract_images_data_original(self):
+        """Test extracting images with data-original attribute."""
+        html = '<img data-original="https://cdn.example.com/full.jpg" src="thumb.jpg">'
+
+        processor = HTMLProcessor()
+        images = processor.extract_images(html)
+
+        assert "thumb.jpg" in images
+        assert "https://cdn.example.com/full.jpg" in images
+
+    def test_extract_images_no_duplicate_lazy(self):
+        """data-src is not duplicated if it matches src."""
+        html = '<img src="/image.png" data-src="/image.png">'
+
+        processor = HTMLProcessor()
+        images = processor.extract_images(html)
+
+        assert images.count("/image.png") == 1
+
     def test_rewrite_urls_with_mapping(self):
         """Test URL rewriting using a mapping dictionary."""
         html = """
@@ -1533,12 +1565,12 @@ class TestExtractEmojiUrls:
         result = processor.extract_emoji_urls(html)
         assert result == []
 
-    def test_emoji_without_emoji_in_src_ignored(self):
-        """Emoji class images without 'emoji' in src are ignored."""
+    def test_emoji_without_emoji_in_src_still_extracted(self):
+        """Emoji class images are extracted even without 'emoji' in src URL."""
         processor = HTMLProcessor()
         html = '<img class="emoji" src="https://example.com/smiley.png" alt=":)">'
         result = processor.extract_emoji_urls(html)
-        assert result == []
+        assert result == ["https://example.com/smiley.png"]
 
     def test_empty_html(self):
         """Empty HTML returns empty list."""

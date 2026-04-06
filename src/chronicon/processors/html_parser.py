@@ -80,11 +80,22 @@ class HTMLProcessor:
         images = []
         soup = BeautifulSoup(html, "html.parser")
 
-        # Extract from img tags
+        def _normalize(u: str) -> str:
+            """Normalize protocol-relative URLs to https."""
+            return f"https:{u}" if u.startswith("//") else u
+
+        # Extract from img tags (including lazy-loaded variants)
         for img in soup.find_all("img"):
             src = img.get("src")
             if src:
-                images.append(src)
+                images.append(_normalize(src))
+            # Discourse lazy-loading uses data-src and data-original
+            for attr in ("data-src", "data-original"):
+                lazy_src = img.get(attr)
+                if lazy_src:
+                    normalized = _normalize(lazy_src)
+                    if normalized not in images:
+                        images.append(normalized)
 
         # Extract from picture/source tags with srcset
         for source in soup.find_all("source"):
@@ -94,7 +105,7 @@ class HTMLProcessor:
                 for entry in srcset.split(","):
                     parts = entry.strip().split()
                     if parts:
-                        images.append(parts[0])
+                        images.append(_normalize(parts[0]))
 
         return images
 
@@ -118,6 +129,9 @@ class HTMLProcessor:
                 continue
 
             url = parts[0]
+            # Normalize protocol-relative URLs
+            if url.startswith("//"):
+                url = f"https:{url}"
 
             # Extract width from descriptor (e.g., "800w" or "1.5x")
             width = 0
@@ -197,8 +211,11 @@ class HTMLProcessor:
             href = anchor.get("href")
             if not href:
                 continue
-            if href.startswith("http"):
+            if href.startswith(("http://", "https://")):
                 urls.append(href)
+            elif href.startswith("//"):
+                # Protocol-relative URL
+                urls.append(f"https:{href}")
             elif href.startswith("/") and base_url:
                 urls.append(base_url.rstrip("/") + href)
         return urls
@@ -225,7 +242,7 @@ class HTMLProcessor:
         soup = BeautifulSoup(html, "html.parser")
         for img in soup.find_all("img", class_="emoji"):
             src = img.get("src")
-            if src and "emoji" in src:
+            if src:
                 urls.append(src)
         return urls
 
@@ -258,8 +275,11 @@ class HTMLProcessor:
         image_sets = {}
         soup = BeautifulSoup(html, "html.parser")
 
-        # Process img tags
+        # Process img tags (skip emoji — handled separately)
         for img in soup.find_all("img"):
+            if "emoji" in (img.get("class") or []):
+                continue
+
             src = img.get("src")
             srcset = img.get("srcset")
 
@@ -820,6 +840,13 @@ class HTMLProcessor:
         soup = BeautifulSoup(html, "html.parser")
         rel_prefix = "../" * page_depth if page_depth > 0 else ""
 
+        # Normalize protocol-relative URLs to https so lookups work
+        for tag in soup.find_all(["img", "source", "a"]):
+            for attr in ("src", "srcset", "href", "data-src", "data-original"):
+                val = tag.get(attr)
+                if val and val.startswith("//"):
+                    tag[attr] = f"https:{val}"
+
         # Get all assets for this topic from database
         topic_assets = db.get_assets_for_topic(topic_id)
 
@@ -918,10 +945,10 @@ class HTMLProcessor:
                 # Fall back to pattern matching within topic assets
                 original_filename = src.split("/")[-1].split("?")[0]
 
-                # Find any asset with matching filename
+                # Find any asset with exact matching filename
                 matching_asset = None
                 for _url, path in asset_map.items():
-                    if original_filename in Path(path).name:
+                    if original_filename == Path(path).name:
                         matching_asset = Path(path)
                         break
 

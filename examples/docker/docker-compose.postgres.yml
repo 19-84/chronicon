@@ -6,7 +6,7 @@
 #   1. cp .env.postgres.example .env && edit .env
 #   2. docker compose -f docker-compose.postgres.yml up -d postgres
 #   3. docker compose -f docker-compose.postgres.yml run --rm api \
-#        python -m chronicon.cli archive --urls https://example.com --output-dir /archives
+#        archive --urls https://example.com --output-dir /archives
 #   4. docker compose -f docker-compose.postgres.yml up -d
 
 services:
@@ -64,7 +64,7 @@ services:
     environment:
       DATABASE_URL: postgresql://chronicon:${POSTGRES_PASSWORD}@postgres:5432/chronicon
     volumes:
-      - ./archives:/archives:ro
+      - ./archives:/archives
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,6 +126,8 @@ services:
       start_period: 30s
     networks:
       - internal
+      # External network needed for polling Discourse APIs
+      - external
     restart: unless-stopped
     logging:
       driver: "json-file"
