@@ -36,7 +36,7 @@ dev = [
     "types-beautifulsoup4>=4.12.0.20250516",
 ]
 postgres = [
-    "psycopg[binary]>=3.3.2,<4.0.0",
+    "psycopg[binary]>=3.3.3,<4.0.0",
 ]
 api = [
     "fastapi>=0.128.0,<1.0.0",
