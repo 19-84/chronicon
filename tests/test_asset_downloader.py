@@ -179,7 +179,7 @@ class TestAssetDownloader:
         # Should have made URL absolute
         # Check that urlopen was called with full URL
         called_url = mock_urlopen.call_args[0][0].full_url
-        assert called_url.startswith("https://meta.discourse.org")
+        assert called_url == "https://meta.discourse.org/uploads/image.png"
 
     def test_protocol_relative_urls_not_doubled(self, mock_client, mock_db, temp_dir):
         """Protocol-relative URLs (//domain/path) don't get base URL prepended."""

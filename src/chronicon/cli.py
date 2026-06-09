@@ -861,14 +861,18 @@ def _archive_site(
                 if url.startswith("/") or not url.startswith("http"):
                     return True  # Relative path — resolves to forum
                 parsed = urlparse(url)
-                host = parsed.netloc
-                # Same domain, or common CDN patterns for this forum
+                host = parsed.netloc.split("@")[-1].split(":")[0].lower()
+
+                def host_matches(domain: str) -> bool:
+                    # Exact host or a true subdomain — not an arbitrary
+                    # substring, which "evil-discourse.org" would satisfy.
+                    return host == domain or host.endswith(f".{domain}")
+
+                # Same domain, or the official Discourse CDN for this forum
                 return (
-                    host == site_domain
-                    or host.endswith(f".{site_domain}")
-                    or "discourse-cdn.com" in host
-                    or "discourse.org" in host
-                    or "uploads" in parsed.path
+                    host_matches(site_domain)
+                    or host_matches("discourse-cdn.com")
+                    or host_matches("discourse.org")
                 )
 
             for topic in all_topics:
@@ -881,7 +885,7 @@ def _archive_site(
                             for _base_id, img_set in image_sets.items():
                                 # Download all srcset variants
                                 for url in img_set.get("all_urls", []):
-                                    if url and url not in [None, ""] and is_forum_url(url):
+                                    if url and is_forum_url(url):
                                         urls_for_topic.append(url)
 
                             lightbox_urls = html_processor.extract_lightbox_urls(
