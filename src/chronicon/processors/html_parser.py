@@ -691,6 +691,10 @@ class HTMLProcessor:
                 continue
 
             url = parts[0]
+            # Normalize protocol-relative URLs per-entry so every variant
+            # (not just the first) is looked up and rewritten.
+            if url.startswith("//"):
+                url = f"https:{url}"
             descriptor = " ".join(parts[1:]) if len(parts) > 1 else ""
             parsed_entries.append(
                 {
@@ -840,9 +844,11 @@ class HTMLProcessor:
         soup = BeautifulSoup(html, "html.parser")
         rel_prefix = "../" * page_depth if page_depth > 0 else ""
 
-        # Normalize protocol-relative URLs to https so lookups work
+        # Normalize protocol-relative URLs to https so lookups work. srcset is
+        # excluded: it holds multiple URLs and is normalized per-entry inside
+        # _rewrite_srcset_value (a whole-value prefix would only fix the first).
         for tag in soup.find_all(["img", "source", "a"]):
-            for attr in ("src", "srcset", "href", "data-src", "data-original"):
+            for attr in ("src", "href", "data-src", "data-original"):
                 val = tag.get(attr)
                 if val and val.startswith("//"):
                     tag[attr] = f"https:{val}"
@@ -853,171 +859,82 @@ class HTMLProcessor:
         # Build lookup dict: url -> local_path
         asset_map = {asset["url"]: asset["local_path"] for asset in topic_assets}
 
-        # Process each image
-        for img in soup.find_all("img"):
-            src = img.get("src")
-            if not src or not src.startswith("http"):
-                continue  # Skip relative URLs or empty src
+        # Secondary index by URL path. Assets are stored under their absolutized
+        # URL, so a root-relative "/uploads/x.png" img src (and host/scheme
+        # mismatches like S3-vs-CloudFront) still resolve by path.
+        path_index: dict[str, str] = {}
+        for asset in topic_assets:
+            try:
+                asset_path = urllib.parse.urlparse(asset["url"]).path
+            except ValueError:
+                continue
+            if asset_path:
+                path_index.setdefault(asset_path, asset["local_path"])
 
-            # Try to find this exact URL in topic-scoped assets
-            if src in asset_map:
-                local_path_str = asset_map[src]
-                relative_path = self._resolve_asset_relative_path(
-                    local_path_str, rel_prefix
-                )
-                if not relative_path:
-                    local_path = Path(local_path_str)
-                    relative_path = (
-                        f"{rel_prefix}assets/images/{topic_id}/{local_path.name}"
-                    )
-
-                # Check if there's a higher resolution version
-                # Look for other assets with similar filenames
-                local_path = Path(local_path_str)
-                filename = local_path.name
-                base_filename = filename.split("_")[0]  # Remove resolution suffix
-                higher_res_asset = None
-
-                for _url, path in asset_map.items():
-                    path_obj = Path(path)
-
-                    # Check if this might be a higher resolution version
-                    is_similar = (
-                        base_filename in path_obj.name and path_obj.name != filename
-                    )
-                    if not is_similar:
-                        continue
-
-                    # Prefer files with 'original' in name or larger file size
-                    try:
-                        is_higher_res = "original" in path_obj.name.lower() or (
-                            local_path.exists()
-                            and path_obj.exists()
-                            and path_obj.stat().st_size > local_path.stat().st_size
-                        )
-                        if is_higher_res:
-                            higher_res_asset = path_obj
-                            break
-                    except (OSError, FileNotFoundError):
-                        continue
-
-                if higher_res_asset:
-                    # Wrap in anchor tag to full resolution
-                    higher_res_path = self._resolve_asset_relative_path(
-                        str(higher_res_asset), rel_prefix
-                    )
-                    if not higher_res_path:
-                        higher_res_path = (
-                            f"{rel_prefix}assets/images/{topic_id}/"
-                            f"{higher_res_asset.name}"
-                        )
-
-                    anchor = soup.new_tag(
-                        "a",
-                        href=higher_res_path,
-                        **{"class": "discourse-image-link", "target": "_blank"},
-                    )
-                    img["src"] = relative_path
-                    img.wrap(anchor)
-                else:
-                    # Just rewrite the src, no anchor needed
-                    img["src"] = relative_path
-
-            else:
-                # Asset not in topic-scoped map - try global lookup
-                global_path = db.get_asset_path(src)
-
-                # Query-param fallback: strip ?v=X and try prefix match
-                if not global_path:
-                    parsed = urllib.parse.urlparse(src)
+        def resolve_local(ref: str) -> str | None:
+            """Resolve an img src / anchor href to a relative local path."""
+            if not ref or ref.startswith("data:"):
+                return None
+            local = asset_map.get(ref)
+            # Path match handles relative refs and host/scheme mismatches.
+            if not local:
+                try:
+                    ref_path = urllib.parse.urlparse(ref).path
+                except ValueError:
+                    ref_path = ref if ref.startswith("/") else ""
+                if ref_path:
+                    local = path_index.get(ref_path)
+            # Global DB lookup (cross-topic, emoji) for absolute URLs.
+            if not local and ref.startswith("http"):
+                local = db.get_asset_path(ref)
+                if not local:
+                    parsed = urllib.parse.urlparse(ref)
                     if parsed.query:
                         base_url = urllib.parse.urlunparse(parsed._replace(query=""))
-                        global_path = db.find_asset_by_url_prefix(base_url)
+                        local = db.find_asset_by_url_prefix(base_url)
+            # Exact-filename fallback within this topic's assets.
+            if not local:
+                name = ref.split("/")[-1].split("?")[0]
+                if name:
+                    for _url, path in asset_map.items():
+                        if Path(path).name == name:
+                            local = path
+                            break
+            if not local:
+                return None
+            relative_path = self._resolve_asset_relative_path(local, rel_prefix)
+            if relative_path:
+                return relative_path
+            # local_path without an "assets/" marker — best-effort fallback.
+            return f"{rel_prefix}assets/images/{topic_id}/{Path(local).name}"
 
-                if global_path:
-                    relative_path = self._resolve_asset_relative_path(
-                        global_path, rel_prefix
-                    )
-                    if relative_path:
-                        img["src"] = relative_path
-                        continue
+        # Rewrite each inline image to its local medium asset. Click-through to
+        # the full-resolution original is handled by the lightbox anchor rewrite
+        # below (Discourse already wraps optimized images in
+        # <a class="lightbox" href="ORIGINAL">), so no synthetic wrapping here.
+        for img in soup.find_all("img"):
+            relative_path = resolve_local(img.get("src"))
+            if relative_path:
+                img["src"] = relative_path
 
-                # Fall back to pattern matching within topic assets
-                original_filename = src.split("/")[-1].split("?")[0]
-
-                # Find any asset with exact matching filename
-                matching_asset = None
-                for _url, path in asset_map.items():
-                    if original_filename == Path(path).name:
-                        matching_asset = Path(path)
-                        break
-
-                if matching_asset:
-                    relative_path = self._resolve_asset_relative_path(
-                        str(matching_asset), rel_prefix
-                    )
-                    if not relative_path:
-                        relative_path = (
-                            f"{rel_prefix}assets/images/{topic_id}/"
-                            f"{matching_asset.name}"
-                        )
-                    img["src"] = relative_path
-                # else: keep original URL (will load remotely if online)
-
-        # Rewrite srcset attributes on <source> and <img> tags
+        # Rewrite srcset attributes on <source> and <img> tags. Process when
+        # it contains remote URLs in either http or protocol-relative (//) form;
+        # _rewrite_srcset_value normalizes // per-entry.
         for tag in soup.find_all(["source", "img"]):
             srcset = tag.get("srcset")
             if not srcset:
                 continue
-            # Only process if srcset contains http URLs
-            if "http" not in srcset:
+            if "http" not in srcset and "//" not in srcset:
                 continue
             tag["srcset"] = self._rewrite_srcset_value(
                 srcset, asset_map, db, rel_prefix
             )
 
-        # Rewrite <a class="lightbox"> href attributes
+        # Rewrite <a class="lightbox"> href attributes — the full-resolution
+        # click-through target. resolve_local matches by exact URL, path, or
+        # exact filename (never a medium variant, so the original is preserved).
         for anchor in soup.find_all("a", class_="lightbox"):
-            href = anchor.get("href")
-            if not href or not href.startswith("http"):
-                continue
-
-            relative_path = None
-
-            # Try topic-scoped lookup
-            if href in asset_map:
-                relative_path = self._resolve_asset_relative_path(
-                    asset_map[href], rel_prefix
-                )
-
-            # Try global lookup
-            if not relative_path:
-                global_path = db.get_asset_path(href)
-                if not global_path:
-                    parsed = urllib.parse.urlparse(href)
-                    if parsed.query:
-                        base_url = urllib.parse.urlunparse(parsed._replace(query=""))
-                        global_path = db.find_asset_by_url_prefix(base_url)
-                if global_path:
-                    relative_path = self._resolve_asset_relative_path(
-                        global_path, rel_prefix
-                    )
-
-            # Filename pattern fallback
-            if not relative_path:
-                original_filename = href.split("/")[-1].split("?")[0]
-                for _url, path in asset_map.items():
-                    if original_filename in Path(path).name:
-                        relative_path = self._resolve_asset_relative_path(
-                            path, rel_prefix
-                        )
-                        if not relative_path:
-                            relative_path = (
-                                f"{rel_prefix}assets/images/{topic_id}/"
-                                f"{Path(path).name}"
-                            )
-                        break
-
+            relative_path = resolve_local(anchor.get("href"))
             if relative_path:
                 anchor["href"] = relative_path
 
