@@ -45,7 +45,7 @@ api = [
     "pydantic>=2.12.5,<3.0.0",
 ]
 mcp = [
-    "mcp>=1.26.0,<2.0.0",
+    "mcp>=1.27.0,<2.0.0",
 ]
 all = [
     "chronicon[postgres,api,mcp]",
