@@ -19,7 +19,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy project files for install
 WORKDIR /build
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 COPY src/ ./src/
 
 # Install package with all dependencies
