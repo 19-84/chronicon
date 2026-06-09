@@ -35,8 +35,8 @@ def get_template_env() -> Environment:
 
         # Add helper functions used by templates
         _template_env.globals["rel_path"] = lambda path, depth: f"/archive/{path}"
-        _template_env.globals["asset_path"] = (
-            lambda path, depth: f"/archive/assets/{path}"
+        _template_env.globals["asset_path"] = lambda path, depth: (
+            f"/archive/assets/{path}"
         )
         _template_env.globals["get_local_logo"] = lambda depth: None
         _template_env.globals["search_backend"] = "fts"
