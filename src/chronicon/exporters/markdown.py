@@ -6,6 +6,7 @@
 import contextlib
 import math
 import os
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
 
@@ -1114,9 +1115,16 @@ class MarkdownGitHubExporter(BaseExporter):
 
         # Build lookup map from topic-specific assets
         topic_assets: dict[str, str] = {}
+        # Secondary index by URL path so root-relative srcs and host/scheme
+        # mismatches (S3 vs CloudFront) resolve without the host.
+        path_index: dict[str, str] = {}
         try:
             for asset in self.db.get_assets_for_topic(topic_id):
                 topic_assets[asset["url"]] = asset["local_path"]
+                with contextlib.suppress(ValueError):
+                    apath = urllib.parse.urlparse(asset["url"]).path
+                    if apath:
+                        path_index.setdefault(apath, asset["local_path"])
         except Exception:
             pass
 
@@ -1135,7 +1143,9 @@ class MarkdownGitHubExporter(BaseExporter):
                 src = "https:" + src
             if not src.startswith("http"):
                 continue
-            rel = self._resolve_asset_url(src, topic_id, topic_assets, topic_dir)
+            rel = self._resolve_asset_url(
+                src, topic_id, topic_assets, path_index, topic_dir
+            )
             if rel:
                 img["src"] = rel
 
@@ -1146,7 +1156,9 @@ class MarkdownGitHubExporter(BaseExporter):
                 href = "https:" + href
             if not href.startswith("http"):
                 continue
-            rel = self._resolve_asset_url(href, topic_id, topic_assets, topic_dir)
+            rel = self._resolve_asset_url(
+                href, topic_id, topic_assets, path_index, topic_dir
+            )
             if rel:
                 anchor["href"] = rel
 
@@ -1157,6 +1169,7 @@ class MarkdownGitHubExporter(BaseExporter):
         url: str,
         topic_id: int,
         topic_assets: dict[str, str],
+        path_index: dict[str, str],
         topic_dir: Path,
     ) -> str | None:
         """
@@ -1170,26 +1183,33 @@ class MarkdownGitHubExporter(BaseExporter):
         # 1. Topic-specific asset lookup
         local_path_str = topic_assets.get(url)
 
-        # 2. Global asset lookup (emoji, site assets, cross-topic images)
+        # 2. Path-based lookup — handles root-relative srcs and CDN host/scheme
+        #    mismatches (S3 vs CloudFront) without matching a different image.
+        if not local_path_str:
+            try:
+                url_path = urllib.parse.urlparse(url).path
+            except ValueError:
+                url_path = url if url.startswith("/") else ""
+            if url_path:
+                local_path_str = path_index.get(url_path)
+
+        # 3. Global asset lookup (emoji, site assets, cross-topic images)
         if not local_path_str:
             with contextlib.suppress(Exception):
                 local_path_str = self.db.get_asset_path(url)
 
-        # 3. Filename-based fallback within topic assets
-        #    Handles CDN hostname mismatches (e.g. S3 vs CloudFront) and
-        #    original-vs-optimized variants (base hash matches with a
-        #    resolution suffix like _2_690x351).
+        # 4. Exact-filename fallback within topic assets. Exact only: a
+        #    prefix/stem match would wrongly resolve an original (abc.png) to a
+        #    medium variant (abc_2_690.png), or vice versa.
         if not local_path_str:
             filename = url.split("/")[-1].split("?")[0]
             if filename:
-                stem = Path(filename).stem
                 for _u, path in topic_assets.items():
-                    pname = Path(path).name
-                    if pname == filename or pname.startswith(stem):
+                    if Path(path).name == filename:
                         local_path_str = path
                         break
 
-        # 4. Fallback: download if asset_downloader is available
+        # 5. Fallback: download if asset_downloader is available
         if not local_path_str and self.asset_downloader:
             try:
                 downloaded = self.asset_downloader.download_image(url, topic_id)
