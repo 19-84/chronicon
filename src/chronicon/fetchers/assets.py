@@ -3,7 +3,9 @@
 
 """Asset downloading and management for archived forums."""
 
+import hashlib
 import logging
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -42,6 +44,12 @@ class AssetDownloader:
         self.db = db
         self.output_dir = Path(output_dir)
         self.text_only = text_only
+
+        # Guards local-filename assignment so concurrent workers downloading
+        # two distinct URLs that sanitize to the same basename don't both pick
+        # the same path and overwrite each other.
+        self._fs_lock = threading.Lock()
+        self._reserved_paths: set[str] = set()
 
         # Initialize statistics tracking
         self.stats = {
@@ -453,17 +461,22 @@ class AssetDownloader:
             except ValidationError:
                 filename = "asset"  # Fallback to generic name
 
-            local_path = target_dir / filename
-
-            # Handle filename collisions: if file exists but belongs to a
-            # different URL, add a hash suffix to avoid overwriting
-            if local_path.exists() and not self.db.get_asset_path(url):
-                import hashlib
-
-                url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-                stem = local_path.stem
-                suffix = local_path.suffix
-                local_path = target_dir / f"{stem}_{url_hash}{suffix}"
+            # Handle filename collisions atomically. Two concurrent workers
+            # downloading distinct URLs with the same sanitized basename must
+            # not both pick target_dir/filename (check-then-write race). Reserve
+            # the chosen path under a lock; if it's taken on disk by a different
+            # URL or reserved by another in-flight download, disambiguate with a
+            # URL hash so each distinct URL gets its own file.
+            with self._fs_lock:
+                local_path = target_dir / filename
+                if str(local_path) in self._reserved_paths or (
+                    local_path.exists() and not self.db.get_asset_path(url)
+                ):
+                    url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+                    local_path = (
+                        target_dir / f"{local_path.stem}_{url_hash}{local_path.suffix}"
+                    )
+                self._reserved_paths.add(str(local_path))
 
             # CDN requests get longer timeout and more retries
             is_cdn = "cdn" in url or "cloudfront" in url
