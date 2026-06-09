@@ -1346,9 +1346,17 @@ class HTMLStaticExporter(BaseExporter):
             if not root_favicon.exists():
                 shutil.copy(site_favicon, root_favicon)
 
-        # Note: Downloaded assets (images, avatars, emoji, site) are already
-        # in output_dir/assets/ from the AssetDownloader in CLI.
-        # We don't need to copy them - they're already in the right place.
+        # Bring downloaded media (images/avatars/emoji/site) into the HTML
+        # tree. The AssetDownloader writes them to <archive_root>/assets, but
+        # HTML pages resolve assets under <html_dir>/assets (where only the
+        # static css/js/fonts were copied above). Without this, every
+        # downloaded image/avatar 404s offline even though the file exists.
+        source_assets = self.output_dir.parent / "assets"
+        if source_assets.is_dir() and source_assets.resolve() != assets_dir.resolve():
+            for sub in ("images", "avatars", "emoji", "site"):
+                src_sub = source_assets / sub
+                if src_sub.is_dir():
+                    shutil.copytree(src_sub, assets_dir / sub, dirs_exist_ok=True)
 
     def export_topics(self, topic_ids: list[int]) -> None:
         """

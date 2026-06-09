@@ -188,6 +188,29 @@ def test_html_export_copies_assets(tmp_path, sample_db):
     assert (assets_dir / "js" / "search.js").exists()
 
 
+def test_html_export_copies_downloaded_media_into_html_tree(tmp_path, sample_db):
+    """Downloaded media at <root>/assets is copied into <html_dir>/assets.
+
+    The AssetDownloader writes images/avatars/emoji to <root>/assets, but HTML
+    pages resolve assets under <html_dir>/assets. Without copying them in, every
+    downloaded image 404s offline even though the file exists.
+    """
+    # Simulate the archive layout: media downloaded to <root>/assets/...
+    root_assets = tmp_path / "assets"
+    (root_assets / "images" / "42").mkdir(parents=True)
+    (root_assets / "images" / "42" / "photo.png").write_bytes(b"img")
+    (root_assets / "avatars").mkdir(parents=True)
+    (root_assets / "avatars" / "user_1.png").write_bytes(b"avatar")
+
+    # HTML exporter writes to <root>/html (a sibling of <root>/assets).
+    output_dir = tmp_path / "html"
+    exporter = HTMLStaticExporter(sample_db, output_dir)
+    exporter.copy_assets()
+
+    assert (output_dir / "assets" / "images" / "42" / "photo.png").exists()
+    assert (output_dir / "assets" / "avatars" / "user_1.png").exists()
+
+
 def test_html_export_full_pipeline(tmp_path, sample_db):
     """Test complete HTML export pipeline."""
     output_dir = tmp_path / "html_output"
