@@ -1688,6 +1688,9 @@ class TestImagePipelineRegressions:
         # No synthetic wrapping and no nested anchors.
         assert "discourse-image-link" not in result
         assert result.count("<a ") == 1
+        # Click-through opens the original in a new tab (no JS lightbox ships).
+        assert 'target="_blank"' in result
+        assert 'rel="noopener"' in result
 
     def test_lightbox_original_not_degraded_to_medium(self):
         """The lightbox original href resolves to the original, never a medium.

@@ -866,8 +866,11 @@ a.post-number:active {
     margin: 1rem 0;
 }
 
-/* Clickable Image Links - Full Resolution Viewer */
-a.discourse-image-link {
+/* Clickable Image Links - Full Resolution Viewer.
+   Discourse wraps optimized images in <a class="lightbox" href="ORIGINAL">;
+   the medium renders inline and the anchor opens the full-resolution original
+   in a new tab. Pure CSS — no JS lightbox is shipped. */
+a.lightbox {
     display: inline-block;
     position: relative;
     line-height: 0;
@@ -876,18 +879,18 @@ a.discourse-image-link {
     margin: 1rem 0;
 }
 
-a.discourse-image-link img {
+a.lightbox img {
     cursor: zoom-in;
     display: block;
 }
 
-a.discourse-image-link:hover img {
+a.lightbox:hover img {
     opacity: 0.9;
     transform: scale(1.01);
 }
 
 /* Zoom icon indicator on hover */
-a.discourse-image-link::after {
+a.lightbox::after {
     content: '🔍';
     position: absolute;
     top: 12px;
@@ -902,18 +905,18 @@ a.discourse-image-link::after {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-a.discourse-image-link:hover::after {
+a.lightbox:hover::after {
     opacity: 1;
 }
 
 /* Focus state for accessibility */
-a.discourse-image-link:focus {
+a.lightbox:focus {
     outline: 3px solid var(--primary-color);
     outline-offset: 3px;
     border-radius: 4px;
 }
 
-a.discourse-image-link:focus::after {
+a.lightbox:focus::after {
     opacity: 1;
 }
 

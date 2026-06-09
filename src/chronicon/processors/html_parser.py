@@ -933,7 +933,10 @@ class HTMLProcessor:
         # Rewrite <a class="lightbox"> href attributes — the full-resolution
         # click-through target. resolve_local matches by exact URL, path, or
         # exact filename (never a medium variant, so the original is preserved).
+        # No JS lightbox ships, so open the original in a new tab.
         for anchor in soup.find_all("a", class_="lightbox"):
+            anchor["target"] = "_blank"
+            anchor["rel"] = "noopener"
             relative_path = resolve_local(anchor.get("href"))
             if relative_path:
                 anchor["href"] = relative_path
