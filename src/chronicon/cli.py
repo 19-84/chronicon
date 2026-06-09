@@ -852,10 +852,18 @@ def _archive_site(
             # or relative paths (which resolve to the forum)
             from urllib.parse import urlparse
 
-            site_domain = urlparse(site_url).netloc
+            # Normalize like is_forum_url does (strip userinfo/port, lowercase)
+            # so a forum entered with uppercase in the domain still matches the
+            # lowercase upload URLs Discourse emits.
+            site_domain = urlparse(site_url).netloc.split("@")[-1].split(":")[0].lower()
+
+            # Discourse stores uploaded media under these path segments. A
+            # self-hosted forum may front them from an unrelated host (S3,
+            # CloudFront, BunnyCDN), so a host allowlist alone misses them.
+            upload_path_segments = {"uploads", "optimized", "original"}
 
             def is_forum_url(url: str) -> bool:
-                """Check if URL is from the forum or a relative path."""
+                """Check if URL is a forum upload, its CDN, or a relative path."""
                 if not url or url.startswith("data:"):
                     return False
                 if url.startswith("/") or not url.startswith("http"):
@@ -869,11 +877,18 @@ def _archive_site(
                     return host == domain or host.endswith(f".{domain}")
 
                 # Same domain, or the official Discourse CDN for this forum
-                return (
+                if (
                     host_matches(site_domain)
                     or host_matches("discourse-cdn.com")
                     or host_matches("discourse.org")
-                )
+                ):
+                    return True
+
+                # Discourse upload media served from a self-hosted object store
+                # or CDN on an unrelated host. Match exact path segments (not a
+                # bare substring) so "/uploads/" is required, not "myuploads".
+                segments = {seg.lower() for seg in parsed.path.split("/") if seg}
+                return bool(segments & upload_path_segments)
 
             for topic in all_topics:
                 urls_for_topic: list[str] = []
@@ -891,7 +906,12 @@ def _archive_site(
                             lightbox_urls = html_processor.extract_lightbox_urls(
                                 post.cooked, base_url=site_url
                             )
-                            urls_for_topic.extend(lightbox_urls)
+                            # Same forum filter as srcset variants above —
+                            # don't fetch a crafted lightbox href from an
+                            # arbitrary host.
+                            urls_for_topic.extend(
+                                u for u in lightbox_urls if is_forum_url(u)
+                            )
 
                             emoji_urls = html_processor.extract_emoji_urls(post.cooked)
                             all_emoji_urls.extend(emoji_urls)
@@ -1386,7 +1406,10 @@ def run_update(args: argparse.Namespace, config: Config) -> None:
     console.print("\n[bold]Downloading assets for affected topics...[/bold]")
     try:
         html_processor = HTMLProcessor()
-        asset_downloader = AssetDownloader(client, db, args.output_dir)
+        # Write under output_dir/assets like the archive path (cli.py ~L797);
+        # the HTML exporter resolves local paths via the "assets/" marker, so
+        # assets stored directly under output_dir/images would not be found.
+        asset_downloader = AssetDownloader(client, db, args.output_dir / "assets")
         for topic_id in topic_ids:
             posts = db.get_topic_posts(topic_id)
             for post in posts:
