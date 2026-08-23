@@ -468,7 +468,13 @@ class WatchDaemon:
         assert self.client is not None
         assert self.db is not None
         html_processor = HTMLProcessor()
-        asset_downloader = AssetDownloader(self.client, self.db, self.output_dir)  # type: ignore[arg-type]
+        # Write under output_dir/assets like the archive path; the HTML
+        # exporter resolves local paths via the "assets/" marker.
+        asset_downloader = AssetDownloader(
+            self.client,
+            self.db,  # type: ignore[arg-type]
+            self.output_dir / "assets",
+        )
 
         for topic_id in topic_ids:
             posts = self.db.get_topic_posts(topic_id)
@@ -494,6 +500,22 @@ class WatchDaemon:
                             asset_downloader.download_image(highest, topic_id)
                         except Exception as e:
                             log.debug(f"Failed to download highest resolution: {e}")
+
+                # Download lightbox full-resolution originals so the
+                # click-through target exists offline (the srcset variants
+                # above do not include the lightbox href original).
+                try:
+                    lightbox_urls = html_processor.extract_lightbox_urls(
+                        post.cooked, base_url=self.site_url or ""
+                    )
+                except Exception as e:
+                    log.debug(f"Failed to extract lightbox urls: {e}")
+                    lightbox_urls = []
+                for lb_url in lightbox_urls:
+                    try:
+                        asset_downloader.download_image(lb_url, topic_id)
+                    except Exception as e:
+                        log.debug(f"Failed to download lightbox original: {e}")
 
         log.info("Asset download for affected topics complete")
 

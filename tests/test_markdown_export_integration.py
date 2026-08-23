@@ -1,6 +1,8 @@
 # ABOUTME: Integration tests for GitHub-flavored markdown exporter
 # ABOUTME: Tests end-to-end markdown export with multiple topics and categories
+import re
 from datetime import datetime
+from unittest.mock import Mock
 
 import pytest
 
@@ -290,3 +292,45 @@ def test_empty_database_export(tmp_path):
     readme = (md_dir / "README.md").read_text()
     # Check the new format uses "Content:" instead of "**Topics:**"
     assert "0 topics, 0 posts" in readme
+
+
+def test_markdown_lightbox_href_not_degraded_to_medium(tmp_path):
+    """A lightbox original href is never resolved to a medium variant.
+
+    When the full-resolution original is not stored under its exact URL, the
+    filename fallback must use exact matching — a prefix match would wrongly
+    point the click-through at the medium image (same base hash, resolution
+    suffix), defeating the medium-inline/full-on-click contract.
+    """
+    output_dir = tmp_path / "md"
+    (output_dir / "t").mkdir(parents=True)
+
+    # Only the medium variant was downloaded (the resolver checks .exists()).
+    assets_dir = tmp_path / "assets" / "images" / "42"
+    assets_dir.mkdir(parents=True)
+    medium = assets_dir / "abc_2_690.jpeg"
+    medium.write_bytes(b"medium")
+
+    topic_assets = [
+        {
+            "url": "https://cdn.example.com/optimized/abc_2_690.jpeg",
+            "local_path": str(medium),
+        }
+    ]
+    db = Mock()
+    db.get_assets_for_topic.return_value = topic_assets
+    db.get_asset_path.return_value = None
+
+    exporter = MarkdownGitHubExporter(db, output_dir)
+    html = (
+        '<a class="lightbox" href="https://cdn.example.com/original/abc.jpeg">'
+        '<img src="https://cdn.example.com/optimized/abc_2_690.jpeg"></a>'
+    )
+    result = exporter._handle_images(html, topic_id=42)
+
+    hrefs = re.findall(r'href="([^"]+)"', result)
+    srcs = re.findall(r'src="([^"]+)"', result)
+    # The original href must NOT be rewritten to the medium file.
+    assert not any(h.endswith("abc_2_690.jpeg") for h in hrefs)
+    # The inline image still resolves to the local medium.
+    assert any(s.endswith("abc_2_690.jpeg") for s in srcs)

@@ -1587,3 +1587,136 @@ class TestExtractEmojiUrls:
         )
         result = processor.extract_emoji_urls(html)
         assert len(result) == 2
+
+
+class TestImagePipelineRegressions:
+    """Regression tests for image fetch/render and lightbox click-through."""
+
+    def _make_mock_db(self, topic_assets, global_assets=None):
+        mock_db = Mock()
+        mock_db.get_assets_for_topic.return_value = topic_assets
+        global_assets = global_assets or {}
+        mock_db.get_asset_path.side_effect = lambda url: global_assets.get(url)
+        mock_db.find_asset_by_url_prefix.return_value = None
+        return mock_db
+
+    def test_root_relative_img_src_resolves_to_local(self):
+        """A root-relative '/uploads/..' src resolves via the URL-path index.
+
+        The asset is stored under its absolutized URL, so an exact-URL lookup
+        misses; matching by path must still find it (otherwise the downloaded
+        image renders broken offline).
+        """
+        processor = HTMLProcessor()
+        html = '<img src="/uploads/default/abc.png" alt="x">'
+        topic_assets = [
+            {
+                "url": "https://forum.example.com/uploads/default/abc.png",
+                "local_path": "archives/assets/images/42/abc.png",
+            }
+        ]
+        mock_db = self._make_mock_db(topic_assets)
+
+        result = processor.rewrite_with_full_resolution_links(
+            html, topic_id=42, db=mock_db, page_depth=2
+        )
+
+        assert "../../assets/images/42/abc.png" in result
+        assert 'src="/uploads/default/abc.png"' not in result
+
+    def test_srcset_protocol_relative_all_entries_rewritten(self):
+        """Every '//' srcset entry is rewritten, not just the first one."""
+        processor = HTMLProcessor()
+        html = (
+            '<img src="//cdn.example.com/a_690.png" '
+            'srcset="//cdn.example.com/a_690.png 690w, '
+            '//cdn.example.com/a_1380.png 1380w">'
+        )
+        topic_assets = [
+            {
+                "url": "https://cdn.example.com/a_690.png",
+                "local_path": "archives/assets/images/42/a_690.png",
+            },
+            {
+                "url": "https://cdn.example.com/a_1380.png",
+                "local_path": "archives/assets/images/42/a_1380.png",
+            },
+        ]
+        mock_db = self._make_mock_db(topic_assets)
+
+        result = processor.rewrite_with_full_resolution_links(
+            html, topic_id=42, db=mock_db, page_depth=2
+        )
+
+        assert "../../assets/images/42/a_690.png" in result
+        assert "../../assets/images/42/a_1380.png" in result
+        # No remote URL of any form should remain (the 2x variant used to).
+        assert "cdn.example.com" not in result
+
+    def test_lightbox_image_not_double_wrapped(self):
+        """An <img> already inside <a class="lightbox"> is not re-wrapped.
+
+        The inline medium is rewritten and the lightbox href becomes the local
+        full-resolution original, with no nested anchor (which browsers split,
+        corrupting the click-through).
+        """
+        processor = HTMLProcessor()
+        html = (
+            '<a class="lightbox" href="https://cdn.example.com/original/abc.jpeg">'
+            '<img src="https://cdn.example.com/optimized/abc_2_690.jpeg"></a>'
+        )
+        topic_assets = [
+            {
+                "url": "https://cdn.example.com/optimized/abc_2_690.jpeg",
+                "local_path": "archives/assets/images/42/abc_2_690.jpeg",
+            },
+            {
+                "url": "https://cdn.example.com/original/abc.jpeg",
+                "local_path": "archives/assets/images/42/abc.jpeg",
+            },
+        ]
+        mock_db = self._make_mock_db(topic_assets)
+
+        result = processor.rewrite_with_full_resolution_links(
+            html, topic_id=42, db=mock_db, page_depth=2
+        )
+
+        # Inline medium rewritten to local.
+        assert "../../assets/images/42/abc_2_690.jpeg" in result
+        # Lightbox href -> local high-res original (the click-through target).
+        assert "../../assets/images/42/abc.jpeg" in result
+        # No synthetic wrapping and no nested anchors.
+        assert "discourse-image-link" not in result
+        assert result.count("<a ") == 1
+        # Click-through opens the original in a new tab (no JS lightbox ships).
+        assert 'target="_blank"' in result
+        assert 'rel="noopener"' in result
+
+    def test_lightbox_original_not_degraded_to_medium(self):
+        """The lightbox original href resolves to the original, never a medium.
+
+        Exact-filename matching prevents 'abc.jpeg' from being resolved to a
+        'abc_2_690.jpeg' medium variant when the original is present.
+        """
+        processor = HTMLProcessor()
+        html = (
+            '<a class="lightbox" href="https://cdn.example.com/x/abc.jpeg">'
+            '<img src="https://cdn.example.com/y/abc_2_690.jpeg"></a>'
+        )
+        topic_assets = [
+            {
+                "url": "https://cdn.example.com/y/abc_2_690.jpeg",
+                "local_path": "archives/assets/images/42/abc_2_690.jpeg",
+            },
+            {
+                "url": "https://cdn.example.com/x/abc.jpeg",
+                "local_path": "archives/assets/images/42/abc.jpeg",
+            },
+        ]
+        mock_db = self._make_mock_db(topic_assets)
+
+        result = processor.rewrite_with_full_resolution_links(
+            html, topic_id=42, db=mock_db, page_depth=2
+        )
+
+        assert 'href="../../assets/images/42/abc.jpeg"' in result
