@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- MCP server ported to the mcp 2.x SDK (`mcp>=2.2.0,<3.0.0`); handlers are registered on the low-level `Server` constructor instead of decorators
+- MCP resources are advertised and served as `text/plain`, matching their content
+
+### Fixed
+
+- MCP `resources/read` failed for every URI: the SDK passes a URL object, which never matched the string comparisons
+- MCP `prompts/get` returned a bare string instead of a prompt result, failing response validation
+- MCP tool calls with a missing required argument now return a tool error instead of an internal error
+- `chronicon mcp` wrote log output to stdout, corrupting the JSON-RPC stream; all console output now goes to stderr
+- `chronicon mcp` without `DATABASE_URL` crashed with a `TypeError` instead of printing setup instructions
+
 ## [1.0.1] - 2026-09-29
 
 ### Fixed

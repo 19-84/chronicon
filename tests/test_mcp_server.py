@@ -104,7 +104,7 @@ async def test_list_tools():
     """Test that MCP server lists all tools."""
     from chronicon.mcp.server import list_tools
 
-    tools = await list_tools()  # type: ignore[call-arg]
+    tools = await list_tools()
 
     assert len(tools) > 0
 
@@ -243,7 +243,7 @@ async def test_list_resources():
     """Test that MCP server lists all resources."""
     from chronicon.mcp.server import list_resources
 
-    resources = await list_resources()  # type: ignore[call-arg]
+    resources = await list_resources()
 
     assert len(resources) > 0
 
@@ -259,11 +259,11 @@ async def test_read_resource_stats():
     """Test reading archive://stats resource."""
     from chronicon.mcp.server import read_resource
 
-    result = await read_resource("archive://stats")  # type: ignore[arg-type]
+    result = await read_resource("archive://stats")
 
-    assert result.type == "text"  # type: ignore[union-attr]
-    assert "Total Topics:" in result.text  # type: ignore[union-attr]
-    assert "Total Posts:" in result.text  # type: ignore[union-attr]
+    assert isinstance(result, str)
+    assert "Total Topics:" in result
+    assert "Total Posts:" in result
 
 
 @pytest.mark.asyncio
@@ -271,11 +271,11 @@ async def test_read_resource_categories():
     """Test reading archive://categories resource."""
     from chronicon.mcp.server import read_resource
 
-    result = await read_resource("archive://categories")  # type: ignore[arg-type]
+    result = await read_resource("archive://categories")
 
-    assert result.type == "text"  # type: ignore[union-attr]
-    assert "General" in result.text  # type: ignore[union-attr]
-    assert "topics" in result.text  # type: ignore[union-attr]
+    assert isinstance(result, str)
+    assert "General" in result
+    assert "topics" in result
 
 
 @pytest.mark.asyncio
@@ -283,10 +283,10 @@ async def test_read_resource_timeline():
     """Test reading archive://timeline resource."""
     from chronicon.mcp.server import read_resource
 
-    result = await read_resource("archive://timeline")  # type: ignore[arg-type]
+    result = await read_resource("archive://timeline")
 
-    assert result.type == "text"  # type: ignore[union-attr]
-    assert "Activity Timeline" in result.text  # type: ignore[union-attr]
+    assert isinstance(result, str)
+    assert "Activity Timeline" in result
 
 
 @pytest.mark.asyncio
@@ -295,7 +295,7 @@ async def test_read_unknown_resource():
     from chronicon.mcp.server import read_resource
 
     with pytest.raises(ValueError) as exc_info:
-        await read_resource("archive://nonexistent")  # type: ignore[arg-type]
+        await read_resource("archive://nonexistent")
 
     assert "Unknown resource URI" in str(exc_info.value)
 
@@ -305,12 +305,12 @@ async def test_list_prompts():
     """Test that MCP server lists all prompts."""
     from chronicon.mcp.server import list_prompts
 
-    prompts = await list_prompts()  # type: ignore[call-arg]
+    prompts = await list_prompts()
 
     assert len(prompts) > 0
 
     # Check for expected prompts
-    prompt_names = [p["name"] for p in prompts]  # type: ignore[index]
+    prompt_names = [p.name for p in prompts]
     assert "token-safety-guide" in prompt_names
     assert "search-query-guide" in prompt_names
 
@@ -430,3 +430,111 @@ async def test_search_when_unavailable(tmp_path, monkeypatch):
     assert isinstance(result[0], TextContent)
     # Search IS available in SQLite, so we'll get an empty result set
     assert "search results" in result[0].text.lower()
+
+
+# Protocol-level tests: drive the server through a real MCP client session so
+# request/result types are validated the way an MCP client would see them.
+
+
+@pytest.fixture
+def mcp_server(monkeypatch):
+    """The MCP server with a fresh database connection for this test's archive.
+
+    Tests open the client in the test body: an async generator fixture would
+    exit the client's cancel scope in a different task than it entered it.
+    """
+    import chronicon.mcp.server as mcp_server_module
+
+    monkeypatch.setattr(mcp_server_module, "_db_instance", None)
+    return mcp_server_module.mcp_server
+
+
+@pytest.mark.asyncio
+async def test_protocol_list_and_call_tool(mcp_server):
+    """Tools are listed and callable over the MCP protocol."""
+    from mcp import Client
+    from mcp.types import TextContent
+
+    async with Client(mcp_server) as client:
+        tools = await client.list_tools()
+        assert "get_statistics" in [tool.name for tool in tools.tools]
+
+        result = await client.call_tool("get_topics", {"page": 1, "per_page": 20})
+
+    assert not result.is_error
+    assert isinstance(result.content[0], TextContent)
+    assert "Python Programming" in result.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_protocol_call_tool_missing_argument(mcp_server):
+    """A missing required argument comes back as a tool error, not a crash."""
+    from mcp import Client
+    from mcp.types import TextContent
+
+    async with Client(mcp_server) as client:
+        result = await client.call_tool("get_topic", {})
+
+    assert result.is_error
+    assert isinstance(result.content[0], TextContent)
+    assert "topic_id" in result.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_protocol_read_resource(mcp_server):
+    """Every listed resource can be read back by URI."""
+    from mcp import Client
+    from mcp.types import TextResourceContents
+
+    async with Client(mcp_server) as client:
+        resources = await client.list_resources()
+        uris = [str(r.uri) for r in resources.resources]
+        assert uris == ["archive://stats", "archive://categories", "archive://timeline"]
+
+        results = {uri: await client.read_resource(uri) for uri in uris}
+
+    for uri, result in results.items():
+        contents = result.contents[0]
+        assert isinstance(contents, TextResourceContents)
+        assert str(contents.uri) == uri
+        assert contents.text
+
+    stats = results["archive://stats"].contents[0]
+    assert isinstance(stats, TextResourceContents)
+    assert "Total Topics:" in stats.text
+
+
+@pytest.mark.asyncio
+async def test_protocol_get_prompt(mcp_server):
+    """Every listed prompt can be fetched as prompt messages."""
+    from mcp import Client
+    from mcp.types import TextContent
+
+    async with Client(mcp_server) as client:
+        prompts = await client.list_prompts()
+        names = [p.name for p in prompts.prompts]
+        assert names == ["token-safety-guide", "search-query-guide"]
+
+        results = {name: await client.get_prompt(name) for name in names}
+
+    for result in results.values():
+        content = result.messages[0].content
+        assert isinstance(content, TextContent)
+        assert content.text
+
+    guide = results["token-safety-guide"].messages[0].content
+    assert isinstance(guide, TextContent)
+    assert "Token Safety Guide" in guide.text
+
+
+@pytest.mark.asyncio
+async def test_protocol_unknown_names_are_errors(mcp_server):
+    """Unknown resources and prompts surface as MCP errors to the client."""
+    from mcp import Client
+    from mcp.shared.exceptions import MCPError
+
+    async with Client(mcp_server) as client:
+        with pytest.raises(MCPError):
+            await client.read_resource("archive://nonexistent")
+        with pytest.raises(MCPError):
+            await client.get_prompt("nonexistent_prompt")

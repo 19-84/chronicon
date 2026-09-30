@@ -337,12 +337,12 @@ async def test_mcp_full_workflow(comprehensive_db, monkeypatch):
     assert "bob" in result
 
     # 6. Read resources
-    resource = await read_resource("archive://stats")  # type: ignore[arg-type]
-    assert "Total Topics: 3" in resource.text  # type: ignore[union-attr]
+    resource = await read_resource("archive://stats")
+    assert "Total Topics: 3" in resource
 
-    resource = await read_resource("archive://categories")  # type: ignore[arg-type]
-    assert "General Discussion" in resource.text  # type: ignore[union-attr]
-    assert "Python" in resource.text  # type: ignore[union-attr]
+    resource = await read_resource("archive://categories")
+    assert "General Discussion" in resource
+    assert "Python" in resource
 
     # 7. Get prompts
     prompt = await get_prompt("token-safety-guide", None)
