@@ -64,7 +64,23 @@ jobs:
 
     - name: Test Docker image
       run: |
-        docker run --rm chronicon-test:${{ matrix.variant }} --help
+        IMAGE=chronicon-test:${{ matrix.variant }}
+        docker run --rm "$IMAGE" --help > /dev/null
+
+        # Seed a tiny archive and run a real export, so missing templates or
+        # static assets in the image fail here rather than for users
+        mkdir -p smoke && chmod 777 smoke
+        docker run --rm --entrypoint python \
+          -v "$PWD/scripts:/scripts:ro" -v "$PWD/smoke:/archives" \
+          "$IMAGE" /scripts/seed_smoke_archive.py /archives
+        docker run --rm -v "$PWD/smoke:/archives" \
+          "$IMAGE" export --output-dir /archives --formats html,md --search-backend static
+
+        test -f smoke/html/index.html
+        test -f smoke/html/assets/css/archive.css
+        test -f smoke/html/assets/js/search.js
+        grep -q "Python Programming" smoke/html/index.html
+        grep -rq "Python Programming" smoke/md
 
     - name: Build and push Docker image
       if: github.event_name != 'pull_request'
