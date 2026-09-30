@@ -67,12 +67,8 @@ chronicon = "chronicon.cli:main"
 requires = ["hatchling>=1.29.0"]
 build-backend = "hatchling.build"
 
-[tool.hatchling.build.targets.wheel]
+[tool.hatch.build.targets.wheel]
 packages = ["src/chronicon"]
-
-[tool.hatchling.build.targets.wheel.shared-data]
-"templates" = "share/chronicon/templates"
-"static" = "share/chronicon/static"
 
 [tool.ruff]
 target-version = "py311"

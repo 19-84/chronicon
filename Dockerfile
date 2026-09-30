@@ -46,8 +46,6 @@ COPY --from=builder /opt/venv /opt/venv
 
 # Copy application code
 COPY --chown=chronicon:chronicon src/chronicon/ /app/chronicon/
-COPY --chown=chronicon:chronicon templates/ /templates/
-COPY --chown=chronicon:chronicon static/ /static/
 
 # Set environment
 ENV PATH="/opt/venv/bin:$PATH" \

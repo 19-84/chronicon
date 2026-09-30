@@ -24,8 +24,8 @@ def get_template_env() -> Environment:
     global _template_env
     if _template_env is None:
         # Find templates directory relative to this file
-        # Path: src/chronicon/api/routes/search_html.py -> templates/
-        package_dir = Path(__file__).parent.parent.parent.parent.parent
+        # Path: chronicon/api/routes/search_html.py -> chronicon/templates/
+        package_dir = Path(__file__).parent.parent.parent
         template_dir = package_dir / "templates"
 
         _template_env = Environment(
