@@ -98,12 +98,12 @@ chronicon/
 │   ├── watch/              # Continuous monitoring
 │   ├── utils/              # Utilities
 │   ├── config.py           # Configuration loading
-│   └── cli.py              # CLI interface
+│   ├── cli.py              # CLI interface
+│   ├── templates/          # Jinja2 templates for HTML export
+│   └── static/             # CSS and JS for HTML export
 ├── tests/                   # Test suite
 │   ├── fixtures/           # Test data
 │   └── test_*.py           # Test files
-├── templates/               # Jinja2 templates for HTML export
-├── static/                  # CSS and JS for HTML export
 ├── examples/                # Example configurations and deployments
 │   ├── docker/             # Docker examples
 │   └── systemd/            # Systemd service examples

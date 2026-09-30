@@ -380,5 +380,5 @@ Tests are organized by component in `tests/`:
 - `WATCH_MODE.md` - Comprehensive watch mode and continuous monitoring guide
 - `.chronicon.toml.example` - Example configuration file
 - `pyproject.toml` - Project metadata and dependencies
-- `templates/` - Jinja2 templates for HTML export
-- `static/` - CSS and JS for HTML export
+- `src/chronicon/templates/` - Jinja2 templates for HTML export (shipped in the wheel)
+- `src/chronicon/static/` - CSS and JS for HTML export (shipped in the wheel)

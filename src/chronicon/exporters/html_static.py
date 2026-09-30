@@ -78,7 +78,7 @@ class HTMLStaticExporter(BaseExporter):
         # Set up template directory
         if template_dir is None:
             # Use default templates directory
-            package_dir = Path(__file__).parent.parent.parent.parent
+            package_dir = Path(__file__).parent.parent
             self.template_dir = package_dir / "templates"
         else:
             self.template_dir = Path(template_dir)
@@ -1284,7 +1284,7 @@ class HTMLStaticExporter(BaseExporter):
         """Copy static assets to output (CSS/JS only)."""
 
         # Get static directory (same parent as templates)
-        package_dir = Path(__file__).parent.parent.parent.parent
+        package_dir = Path(__file__).parent.parent
         static_dir = package_dir / "static"
 
         # Define target assets directory
