@@ -72,7 +72,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 # Labels for metadata
 LABEL maintainer="Chronicon" \
-      version="1.0.0" \
+      version="1.0.1" \
       description="Chronicon container for archiving" \
       base="python:3.12-slim" \
       security="hardened"
