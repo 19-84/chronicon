@@ -298,43 +298,56 @@ async def test_mcp_full_workflow(comprehensive_db, monkeypatch):
     """Test complete MCP workflow."""
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{comprehensive_db}")
 
-    from chronicon.mcp.server import mcp_server
+    from mcp.types import TextContent
+
+    from chronicon.mcp import server as mcp_server_module
+    from chronicon.mcp.server import call_tool, get_prompt, read_resource
+
+    async def tool_text(name: str, arguments: dict) -> str:
+        result = await call_tool(name, arguments)
+        assert isinstance(result, list)
+        assert isinstance(result[0], TextContent)
+        return result[0].text
+
+    # Drop any database cached by earlier tests so DATABASE_URL takes effect
+    monkeypatch.setattr(mcp_server_module, "_db_instance", None)
 
     # 1. Get statistics
-    result = await mcp_server.call_tool("get_statistics", {})  # type: ignore[call-arg]
+    result = await tool_text("get_statistics", {})
     assert "Total Topics: 3" in result
     assert "Total Posts: 8" in result
 
     # 2. List topics
-    result = await mcp_server.call_tool("get_topics", {"page": 1, "per_page": 10})  # type: ignore[call-arg]
+    result = await tool_text("get_topics", {"page": 1, "per_page": 10})
     assert "Welcome to the forum" in result
     assert "Python best practices" in result
 
     # 3. Get topic details
-    result = await mcp_server.call_tool("get_topic", {"topic_id": 2})  # type: ignore[call-arg]
+    result = await tool_text("get_topic", {"topic_id": 2})
     assert "Python best practices" in result
     assert "Posts: 5" in result
 
     # 4. Search topics
-    result = await mcp_server.call_tool("search_topics", {"query": "django"})  # type: ignore[call-arg]
+    result = await tool_text("search_topics", {"query": "django"})
     assert "Django" in result
 
     # 5. Get users
-    result = await mcp_server.call_tool("get_users", {"page": 1, "per_page": 10})  # type: ignore[call-arg]
+    result = await tool_text("get_users", {"page": 1, "per_page": 10})
     assert "alice" in result
     assert "bob" in result
 
     # 6. Read resources
-    result = await mcp_server.read_resource("archive://stats")  # type: ignore[call-arg]
-    assert "Total Topics: 3" in result.text
+    resource = await read_resource("archive://stats")  # type: ignore[arg-type]
+    assert "Total Topics: 3" in resource.text  # type: ignore[union-attr]
 
-    result = await mcp_server.read_resource("archive://categories")  # type: ignore[call-arg]
-    assert "General Discussion" in result.text
-    assert "Python" in result.text
+    resource = await read_resource("archive://categories")  # type: ignore[arg-type]
+    assert "General Discussion" in resource.text  # type: ignore[union-attr]
+    assert "Python" in resource.text  # type: ignore[union-attr]
 
     # 7. Get prompts
-    result = await mcp_server.get_prompt("token-safety-guide", None)  # type: ignore[call-arg]
-    assert "Token Safety Guide" in result
+    prompt = await get_prompt("token-safety-guide", None)
+    assert isinstance(prompt, str)
+    assert "Token Safety Guide" in prompt
 
 
 def test_field_selection_reduces_response_size(comprehensive_db):
