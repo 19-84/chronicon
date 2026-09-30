@@ -4,9 +4,26 @@
 import os
 from typing import Any
 
-from mcp.server import Server
+from mcp.server import Server, ServerRequestContext
 from mcp.server.stdio import stdio_server
-from mcp.types import Resource, TextContent, Tool
+from mcp.types import (
+    CallToolRequestParams,
+    CallToolResult,
+    GetPromptRequestParams,
+    GetPromptResult,
+    ListPromptsResult,
+    ListResourcesResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    Prompt,
+    PromptMessage,
+    ReadResourceRequestParams,
+    ReadResourceResult,
+    Resource,
+    TextContent,
+    TextResourceContents,
+    Tool,
+)
 
 from chronicon.storage.database_base import ArchiveDatabaseBase
 from chronicon.storage.factory import get_database
@@ -30,11 +47,6 @@ def get_db() -> ArchiveDatabaseBase:
     return _db_instance
 
 
-# Create MCP server
-mcp_server = Server("chronicon-archive")
-
-
-@mcp_server.list_resources()
 async def list_resources() -> list[Resource]:
     """
     List available MCP resources.
@@ -46,27 +58,26 @@ async def list_resources() -> list[Resource]:
     """
     return [
         Resource(
-            uri="archive://stats",  # type: ignore[arg-type]
+            uri="archive://stats",
             name="Archive Statistics",
             description="Comprehensive statistics about the archived forum",
-            mimeType="application/json",
+            mime_type="text/plain",
         ),
         Resource(
-            uri="archive://categories",  # type: ignore[arg-type]
+            uri="archive://categories",
             name="Forum Categories",
             description="List of all categories in the archive",
-            mimeType="application/json",
+            mime_type="text/plain",
         ),
         Resource(
-            uri="archive://timeline",  # type: ignore[arg-type]
+            uri="archive://timeline",
             name="Activity Timeline",
             description="Monthly activity timeline showing topics and posts over time",
-            mimeType="application/json",
+            mime_type="text/plain",
         ),
     ]
 
 
-@mcp_server.read_resource()  # type: ignore[arg-type]
 async def read_resource(uri: str) -> str:
     """
     Read a resource by URI.
@@ -75,39 +86,28 @@ async def read_resource(uri: str) -> str:
         uri: Resource URI (e.g., "archive://stats")
 
     Returns:
-        Resource content as JSON string
+        Resource content as plain text
     """
     db = get_db()
 
     if uri == "archive://stats":
         stats = db.get_archive_statistics()
-        return TextContent(  # type: ignore[return-value]
-            type="text",
-            text=f"Archive Statistics:\n\n{_format_stats(stats)}",
-        )
+        return f"Archive Statistics:\n\n{_format_stats(stats)}"
 
     if uri == "archive://categories":
         categories = db.get_all_categories()
-        return TextContent(  # type: ignore[return-value]
-            type="text",
-            text=(
-                f"Categories ({len(categories)} total):"
-                f"\n\n{_format_categories(categories)}"
-            ),
+        return (
+            f"Categories ({len(categories)} total):\n\n{_format_categories(categories)}"
         )
 
     if uri == "archive://timeline":
         timeline = db.get_activity_timeline()
-        return TextContent(  # type: ignore[return-value]
-            type="text",
-            text=f"Activity Timeline:\n\n{_format_timeline(timeline)}",
-        )
+        return f"Activity Timeline:\n\n{_format_timeline(timeline)}"
 
     raise ValueError(f"Unknown resource URI: {uri}")
 
 
-@mcp_server.list_prompts()  # type: ignore[arg-type]
-async def list_prompts() -> list[dict[str, Any]]:
+async def list_prompts() -> list[Prompt]:
     """
     List available MCP prompts.
 
@@ -116,21 +116,20 @@ async def list_prompts() -> list[dict[str, Any]]:
     - search-query-guide - How to construct effective search queries
     """
     return [
-        {
-            "name": "token-safety-guide",
-            "description": (
+        Prompt(
+            name="token-safety-guide",
+            description=(
                 "Guide for using field selection and body"
                 " truncation to minimize token usage"
             ),
-        },
-        {
-            "name": "search-query-guide",
-            "description": "Guide for constructing effective search queries",
-        },
+        ),
+        Prompt(
+            name="search-query-guide",
+            description="Guide for constructing effective search queries",
+        ),
     ]
 
 
-@mcp_server.get_prompt()  # type: ignore[arg-type]
 async def get_prompt(name: str, arguments: dict[str, str] | None = None) -> str:
     """
     Get a prompt by name.
@@ -203,7 +202,6 @@ Uses `plainto_tsquery` which:
     raise ValueError(f"Unknown prompt: {name}")
 
 
-@mcp_server.list_tools()
 async def list_tools() -> list[Tool]:
     """
     List available MCP tools.
@@ -225,7 +223,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_topics",
             description="List topics with optional category filtering and pagination",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "page": {"type": "integer", "default": 1},
@@ -238,7 +236,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_topic",
             description="Get detailed information about a specific topic",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "topic_id": {"type": "integer"},
@@ -250,7 +248,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_topic_posts",
             description="Get posts in a topic with pagination",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "topic_id": {"type": "integer"},
@@ -265,7 +263,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_topics",
             description="Search topics using full-text search",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "query": {"type": "string"},
@@ -278,7 +276,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_posts",
             description="Search posts using full-text search",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "query": {"type": "string"},
@@ -292,7 +290,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_users",
             description="List users with post counts",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "page": {"type": "integer", "default": 1},
@@ -303,17 +301,16 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_categories",
             description="List all categories",
-            inputSchema={"type": "object", "properties": {}},
+            input_schema={"type": "object", "properties": {}},
         ),
         Tool(
             name="get_statistics",
             description="Get comprehensive archive statistics",
-            inputSchema={"type": "object", "properties": {}},
+            input_schema={"type": "object", "properties": {}},
         ),
     ]
 
 
-@mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """
     Call a tool by name.
@@ -437,6 +434,71 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         return [TextContent(type="text", text=_format_stats(stats))]
 
     raise ValueError(f"Unknown tool: {name}")
+
+
+# MCP protocol handlers: adapt the functions above to the SDK's request/result types
+async def _on_list_tools(
+    ctx: ServerRequestContext, params: PaginatedRequestParams | None
+) -> ListToolsResult:
+    return ListToolsResult(tools=await list_tools())
+
+
+async def _on_call_tool(
+    ctx: ServerRequestContext, params: CallToolRequestParams
+) -> CallToolResult:
+    arguments = params.arguments or {}
+    try:
+        content = await call_tool(params.name, arguments)
+    except KeyError as e:
+        return CallToolResult(
+            content=[TextContent(type="text", text=f"Missing required argument: {e}")],
+            is_error=True,
+        )
+    return CallToolResult(content=list(content))
+
+
+async def _on_list_resources(
+    ctx: ServerRequestContext, params: PaginatedRequestParams | None
+) -> ListResourcesResult:
+    return ListResourcesResult(resources=await list_resources())
+
+
+async def _on_read_resource(
+    ctx: ServerRequestContext, params: ReadResourceRequestParams
+) -> ReadResourceResult:
+    uri = str(params.uri)
+    text = await read_resource(uri)
+    return ReadResourceResult(
+        contents=[TextResourceContents(uri=uri, mime_type="text/plain", text=text)]
+    )
+
+
+async def _on_list_prompts(
+    ctx: ServerRequestContext, params: PaginatedRequestParams | None
+) -> ListPromptsResult:
+    return ListPromptsResult(prompts=await list_prompts())
+
+
+async def _on_get_prompt(
+    ctx: ServerRequestContext, params: GetPromptRequestParams
+) -> GetPromptResult:
+    text = await get_prompt(params.name, params.arguments)
+    return GetPromptResult(
+        messages=[
+            PromptMessage(role="user", content=TextContent(type="text", text=text))
+        ]
+    )
+
+
+mcp_server = Server(
+    "chronicon-archive",
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+    on_list_resources=_on_list_resources,
+    on_read_resource=_on_read_resource,
+    on_list_prompts=_on_list_prompts,
+    on_get_prompt=_on_get_prompt,
+)
 
 
 # Formatting helpers

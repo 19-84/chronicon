@@ -2653,3 +2653,52 @@ def test_update_command_skips_asset_download_when_no_changes(sample_archive, cap
         # AssetDownloader should not have been used for downloads
         mock_asset_dl = mock_asset_dl_class.return_value
         mock_asset_dl.download_image.assert_not_called()
+
+
+class TestRunMcp:
+    """Tests for the mcp command, whose stdout is the MCP JSON-RPC channel."""
+
+    @pytest.fixture(autouse=True)
+    def restore_consoles(self, monkeypatch):
+        """run_mcp repoints the shared Rich consoles; restore them afterwards.
+
+        Restore the private _file (normally None, meaning "current sys.stdout")
+        rather than the file property, which would pin this test's capture stream.
+        """
+        from chronicon import cli
+        from chronicon.utils import logger as logger_module
+
+        monkeypatch.setattr(cli.console, "_file", cli.console._file)
+        monkeypatch.setattr(logger_module.console, "_file", logger_module.console._file)
+
+    def test_missing_database_url_reports_on_stderr(self, monkeypatch, capsys):
+        from chronicon.cli import run_mcp
+
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+
+        with pytest.raises(SystemExit) as exc_info:
+            run_mcp(Mock(), Mock())
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "DATABASE_URL environment variable not set" in captured.err
+
+    def test_rich_output_goes_to_stderr_while_serving(self, monkeypatch):
+        import sys
+
+        from chronicon import cli
+        from chronicon.utils import logger as logger_module
+
+        pytest.importorskip("mcp")
+        monkeypatch.setenv("DATABASE_URL", "sqlite:///unused.db")
+        consoles_during_run = []
+
+        async def fake_main():
+            consoles_during_run.append((cli.console.file, logger_module.console.file))
+
+        monkeypatch.setattr("chronicon.mcp.server.main", fake_main)
+
+        cli.run_mcp(Mock(), Mock())
+
+        assert consoles_during_run == [(sys.stderr, sys.stderr)]

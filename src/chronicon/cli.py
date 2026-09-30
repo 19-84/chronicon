@@ -2108,18 +2108,20 @@ def run_mcp(args: argparse.Namespace, config: Config) -> None:
     import asyncio
     import os
 
+    from chronicon.utils import logger as logger_module
+
+    # stdout carries the MCP JSON-RPC stream; send all Rich output to stderr
+    console.file = sys.stderr
+    logger_module.console.file = sys.stderr
+
     # Check for DATABASE_URL environment variable
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
-        console.print(
-            "[red]Error: DATABASE_URL environment variable not set.[/red]",
-            file=sys.stderr,  # type: ignore[call-arg]
-        )
+        console.print("[red]Error: DATABASE_URL environment variable not set.[/red]")
         console.print(
             "Set it to your database path, e.g.:\n"
             "  export DATABASE_URL=sqlite:///./archives/meta.discourse.org/archive.db\n"
-            "  export DATABASE_URL=postgresql://localhost/chronicon",
-            file=sys.stderr,  # type: ignore[call-arg]
+            "  export DATABASE_URL=postgresql://localhost/chronicon"
         )
         sys.exit(1)
 
@@ -2130,14 +2132,8 @@ def run_mcp(args: argparse.Namespace, config: Config) -> None:
 
         asyncio.run(mcp_main())
     except ImportError:
-        console.print(
-            "[red]Error: MCP server dependencies are required.[/red]",
-            file=sys.stderr,  # type: ignore[call-arg]
-        )
-        console.print(
-            "Install with: pip install chronicon[mcp]",
-            file=sys.stderr,  # type: ignore[call-arg]
-        )
+        console.print("[red]Error: MCP server dependencies are required.[/red]")
+        console.print("Install with: pip install chronicon[mcp]")
         sys.exit(1)
     except KeyboardInterrupt:
         log.info("MCP server stopped by user")
