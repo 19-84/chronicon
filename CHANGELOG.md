@@ -13,6 +13,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-29
+
+### Fixed
+
+- Image pipeline: downloaded media is copied into the HTML asset tree, relative and CDN-mismatched assets resolve correctly, and Markdown exporters match assets by exact filename
+- Lightbox originals are fetched and stored under `assets/` in watch mode; lightbox click-through opens the original without JavaScript
+- Concurrent asset filename assignment is now atomic
+- Off-domain upload fetching restored with an anchored domain check, closing an SSRF path through lightbox and asset URLs
+- Markdown image and anchor URLs are rewritten to local assets; sitemap uses correct extensions
+- Search index links to the correct page for paginated posts
+- Template URL patterns and SEO tags
+- Docker builds copy `README.md` so package metadata installs correctly
+- `get_assets_for_topic` added to the abstract database base class
+- MCP integration test called the decorator instead of the tool handlers
+
+### Security
+
+- Resolved Dependabot advisories in locked dependencies, including anyio 4.14.2+ (TLS host name spoofing), PyJWT 2.14.0+ (HMAC/asymmetric key confusion, JWKS redirect and fetch amplification), cryptography, starlette, soupsieve, mcp, and pydantic-settings
+
+### Changed
+
+- Refreshed locked dependencies to latest compatible minor and patch releases
+- `mcp` capped at `<2.0.0`; the 2.x SDK removed the low-level decorator API the MCP server uses
+- Dev dependencies now include `pytest-asyncio` (async MCP tests previously skipped) and `httpx2` (Starlette's test client no longer supports `httpx`)
+- Dependabot tracks Python dependencies through the `uv` ecosystem so `uv.lock` updates are grouped
+
 ## [1.0.0] - 2025-11-11
 
 ### Added
