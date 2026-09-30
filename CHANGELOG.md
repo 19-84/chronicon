@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Source distributions build again: stray pytest temp output with absolute symlinks is no longer tracked in the repository
 - Wheels now include the HTML templates and static assets, so HTML export and the search pages work after `pip install`; they moved into `src/chronicon/`, and the build config uses the `[tool.hatch]` table hatch actually reads
 - Image pipeline: downloaded media is copied into the HTML asset tree, relative and CDN-mismatched assets resolve correctly, and Markdown exporters match assets by exact filename
 - Lightbox originals are fetched and stored under `assets/` in watch mode; lightbox click-through opens the original without JavaScript
