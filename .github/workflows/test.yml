@@ -25,6 +25,11 @@ jobs:
     - name: Install dependencies
       run: uv sync --all-extras
 
+    - name: Build distribution
+      run: |
+        uv build
+        uv run python -c "import zipfile, glob; names = zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert 'chronicon/templates/base.html' in names and 'chronicon/static/css/archive.css' in names, 'wheel is missing templates/static'"
+
     - name: Run ruff formatter check
       run: uv run ruff format --check src/ tests/
 
